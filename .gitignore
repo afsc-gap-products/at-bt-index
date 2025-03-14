@@ -7,3 +7,8 @@
 
 # Ignore data & papers
 *.pdf
+*.csv
+*.png
+
+# Ignore EBS shelf shapefile (at least for now)
+EBSshelf*
