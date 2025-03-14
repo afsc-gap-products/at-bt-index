@@ -1,0 +1,9 @@
+# Ignore auto-generated RStudio files
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+*.Rproj
+
+# Ignore data & papers
+*.pdf
