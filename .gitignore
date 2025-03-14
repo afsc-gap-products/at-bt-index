@@ -1,9 +1,10 @@
-# Ignore auto-generated RStudio files
+# Ignore auto-generated RStudio & system files
 .Rproj.user
 .Rhistory
 .RData
 .Ruserdata
 *.Rproj
+.DS_Store
 
 # Ignore data & papers
 *.pdf
