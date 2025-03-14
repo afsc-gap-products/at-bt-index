@@ -273,11 +273,11 @@ png(file = here("output", "Fig_5_comparison.png"),
           border = NA)
 dev.off()
 
-# TODO: get the file for this piece from JT or re-write plotting in ggplot
-# source(file.path(R'(C:\Users\James.Thorson\Desktop\Git\Edition_1\Shared_functions)',"add_legend.R"))
+# Custom script from Jim Thorson for adding a plot legend
+source(here("R","add_legend.R"))
 
 for(c_index in 1:3) {
-  png(file = paste0("Densities_", c("low", "med", "hi")[c_index], ".png"), 
+  png(file = here("output", paste0("Densities_", c("low", "med", "hi")[c_index], ".png")), 
       width = 7.5, height = 6, units = "in", res = 200)
     par(mfrow=c(3, 4))
     logD_gt <- log(Dhat_gct[, c_index, , drop = FALSE])
@@ -285,20 +285,20 @@ for(c_index in 1:3) {
     plotgrid <- st_sf(grid, logD_gt, crs = st_crs(grid))
     for(t in 1:(dim(Dhat_gct)[[3]])) {
       plot(plotgrid[, t], max.plot = 20, border = NA, key.pos = NULL, reset = FALSE, pal = viridis, main = year_set[t])
-      # add_legend(round(range(plotgrid[[t]], na.rm=TRUE), 2), legend_y = c(0.6, 1), legend_x = c(1, 1.05), col = viridis(10))
+      add_legend(round(range(plotgrid[[t]], na.rm=TRUE), 2), legend_y = c(0.6, 1), legend_x = c(1, 1.05), col = viridis(10))
     }
   dev.off()
 }
 
 # Spatio-temporal term
 for(c_index in 1:3){
-  png(file = paste0("eps_", c("low", "med", "hi")[c_index], ".png"), 
+  png(file = here("output", paste0("eps_", c("low", "med", "hi")[c_index], ".png")), 
       width = 7.5, height = 6, units = "in", res = 200)
     par(mfrow=c(3, 4))
     plotgrid = st_sf(grid, epshat_gct[, c_index, , drop = FALSE], crs = st_crs(grid))
     for(t in 1:(dim(Dhat_gct)[[3]])) {
       plot(plotgrid[, t], max.plot = 20, border = NA, key.pos = NULL, reset = FALSE, pal = viridis, main = year_set[t])
-      # add_legend( round(range(plotgrid[[t]],na.rm=TRUE),2), legend_y=c(0.6,1), legend_x=c(1,1.05), col=viridis(10) )
+      add_legend(round(range(plotgrid[[t]], na.rm = TRUE), 2), legend_y = c(0.6, 1), legend_x = c(1, 1.05), col = viridis(10))
     }
   dev.off()
 }
@@ -309,8 +309,8 @@ prop_bt_gt <- apply(Dhat_gct[, 1:2, ], MARGIN = c(1, 3), FUN = sum) / apply(Dhat
 prop_at_gt <- apply(Dhat_gct[, 2:3, ], MARGIN = c(1, 3), FUN = sum) / apply(Dhat_gct, MARGIN = c(1, 3), FUN = sum)
 D_gzt <- aperm(abind::abind(D_bt_gt, D_at_gt, prop_bt_gt, prop_at_gt, along = 3), c(1, 3, 2))
 
-for(c_index in 1:4 ) {
-  png(file = paste0("Densities_", c("BT", "AT", "BTprop", "ATprop")[c_index], ".png"), 
+for(c_index in 1:4) {
+  png(file = here("output", paste0("Densities_", c("BT", "AT", "BTprop", "ATprop")[c_index], ".png")), 
       width = 7.5, height = 6, units = "in", res = 200)
     par(mfrow=c(3, 4))
     if(c_index %in% 1:2){
@@ -327,7 +327,7 @@ for(c_index in 1:4 ) {
         dat_subset <- subset(dat_sf, Year == year_set[t] & dat$Gear != "BT")
       }
       plot(plotgrid[, t], max.plot = 20, border = NA, key.pos = NULL, reset = FALSE, pal = viridis, main = year_set[t])
-      # add_legend(round(range(plotgrid[[t]], na.rm = TRUE), 2), legend_y = c(0.6, 1), legend_x = c(1, 1.05), col = viridis(10))
+      add_legend(round(range(plotgrid[[t]], na.rm = TRUE), 2), legend_y = c(0.6, 1), legend_x = c(1, 1.05), col = viridis(10))
       plot(st_geometry(dat_subset), add = TRUE, pch = 20, cex = 0.2, col = rgb(0, 0, 0, 0.2))
     }
   dev.off()
