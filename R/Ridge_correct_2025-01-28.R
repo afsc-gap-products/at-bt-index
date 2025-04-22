@@ -41,7 +41,7 @@ grid <- st_make_valid(grid)
 extrap <- st_coordinates(st_centroid(grid))
 extrap <- cbind('Lon' = extrap[, 1], 
                 'Lat' = extrap[, 2], 
-                'Area_in_survey_km2' = st_area(grid) / 1e6 )
+                'Area_in_survey_km2' = st_area(grid) / 1e6)
 
 # Unpack data
 b_i <- dat$Catch_KG
@@ -77,7 +77,7 @@ parlist <- list(
 
 # Model construction ----------------------------------------------------------
 jnll_spde <- function(parlist, what = "jnll") {
-  "c" <- ADoverload("c")
+  "c" <- ADoverload("c")  # enbale extra RTMB convenience methods
   "[<-" <- ADoverload("[<-")
   getAll(parlist)
   phi <- exp(ln_phi)
@@ -200,6 +200,7 @@ map <- list()
   map$invf_rho <- factor(NA)
   #map$ln_sd = factor(NA)
   map$ln_q <- factor(NA)
+  
 build_obj <- function() {
   MakeADFun( 
     func = jnll_spde,
@@ -213,20 +214,21 @@ build_obj <- function() {
 }
 
 # Run model -------------------------------------------------------------------
-obj <- build_obj()  # build model object
+obj <- build_obj()  # build objective function
+# Run optimization
 opt <- nlminb(obj$par, obj$fn, obj$gr, 
               control = list(iter.max = 1e4, eval.max = 1e4, trace = 1))
-parlist <- obj$env$parList()
+parlist <- obj$env$parList()  # parameter estimates
 Hess <- optimHess(opt$par, obj$fn, obj$gr)
 
-# Get epsilon estimator
+# Get epsilon estimator (bias correction)
 biascor <- sdreport(obj, 
                     par.fixed = opt$par,
                     hessian.fixed = Hess,
                     getReportCovariance = FALSE,
-                    #bias.correct.control = list(sd = FALSE, split = NULL, nsplit = 10),
-                    #skip.delta.method = FALSE, 
-                    bias.correct = TRUE )
+                    # bias.correct.control = list(sd = FALSE, split = NULL, nsplit = 10),
+                    # skip.delta.method = FALSE, 
+                    bias.correct = TRUE)
 
 # Get SEs
 extra_adreport <- TRUE
