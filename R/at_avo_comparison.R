@@ -4,6 +4,7 @@ library(here)
 library(dplyr)
 library(ggplot2)
 library(viridis)
+library(cowplot)
 library(sf)
 library(rnaturalearth)
 
@@ -15,7 +16,9 @@ library(ggsidekick)
 theme_set(theme_sleek())
 
 dat <- read.csv(here("data", "data_real.csv"))[, -9]
-dat_at <- dat %>% filter(Gear %in% c("AT2", "AT3"))
+dat_at <- dat %>% filter(Gear %in% c("AT2", "AT3")) %>%
+  group_by(Lat, Lon) %>%
+  mutate(Station = row_number())
 dat_avo <- read.csv(here("data", "avo", "2018-AVO-1m-grid-cell.csv"))
 dat_avo <- cbind.data.frame(Lat = dat_avo$latitude,
                             Lon = dat_avo$longitude,
@@ -25,7 +28,7 @@ dat_avo <- cbind.data.frame(Lat = dat_avo$latitude,
                             AreaSwept_km2 = 1,
                             Vessel = "none",
                             depth = dat_avo$height)
-
+  
 # Annual plot of AT sampling location (as recorded here)
 lat_lon <- rbind.data.frame(cbind.data.frame())
 world <- ne_countries(scale = "medium", returnclass = "sf")
@@ -59,10 +62,14 @@ mean_depth <- dat_at %>%
   group_by(Gear, Year) %>%
   summarize(mean_depth = mean(depth))
 
-# Depths for AT & AVO
-at_avo_depth <- ggplot(data = world) +
+# Plot of mean depth by survey
+mean_depth_loc <- at_avo %>%
+  group_by(Gear, Lat, Lon) %>%
+  summarize(mean_depth = mean(depth))
+
+at_avo_mean_depth <- ggplot(data = world) +
   geom_sf() +
-  geom_point(data = at_avo, aes(x = Lon, y = Lat, color = depth), shape = "square", size = 2) +
+  geom_point(data = mean_depth_loc, aes(x = Lon, y = Lat, color = mean_depth), shape = "square", size = 2) +
   coord_sf(xlim = c(-179, -157), ylim = c(54, 65), expand = FALSE) +
   scale_x_continuous(breaks = c(-178, -158)) +
   scale_y_continuous(breaks = c(55, 64)) +
@@ -70,10 +77,29 @@ at_avo_depth <- ggplot(data = world) +
   labs(x = NULL, y = NULL) +
   theme(plot.background = element_rect(fill = "transparent")) +
   facet_wrap(~ Gear)
-at_avo_depth
+at_avo_mean_depth
 
-# Depth-weighted abundance (biomass or backscatter) estimates for both surveys
+# Abundance-at-depth by survey
 at_avo$abundance <- c(dat_at[dat_at$Gear == "AT2" & dat_at$Year == 2018, ]$Catch_KG,
                       dat_avo$sA)
+
+abundance_depth <- at_avo %>%
+  mutate(depth_bin = cut(depth, breaks = seq(0, 370, by = 10))) %>%
+  group_by(Gear, depth_bin) %>%
+  summarize(abundance = mean(abundance))
+
+ggplot(data = abundance_depth %>% filter(Gear == "AT2"), 
+       aes(x = Gear, y = depth_bin, fill = abundance)) +
+  geom_tile() +
+  scale_fill_viridis(name = "Abundance (kg)") +
+  ylab("Depth Bin")
+
+ggplot(data = abundance_depth %>% filter(Gear == "AVO"), 
+       aes(x = Gear, y = depth_bin, fill = abundance)) +
+  geom_tile() +
+  scale_fill_viridis(name = "Abundance (sA)") +
+  ylab("Depth Bin")
+
+# Depth-weighted abundance (biomass or backscatter) estimates for both surveys
 
 # Z-score datasets for basic comparison
