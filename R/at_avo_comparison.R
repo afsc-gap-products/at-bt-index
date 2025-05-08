@@ -16,9 +16,6 @@ library(ggsidekick)
 theme_set(theme_sleek())
 
 dat <- read.csv(here("data", "data_real.csv"))[, -9]
-dat_at <- dat %>% filter(Gear %in% c("AT2", "AT3")) %>%
-  group_by(Lat, Lon) %>%
-  mutate(Station = row_number())
 dat_avo <- read.csv(here("data", "avo", "2018-AVO-1m-grid-cell.csv"))
 dat_avo <- cbind.data.frame(Lat = dat_avo$latitude,
                             Lon = dat_avo$longitude,
@@ -35,7 +32,7 @@ world <- ne_countries(scale = "medium", returnclass = "sf")
 sf_use_s2(FALSE)  # turn off spherical geometry
 map_at <- ggplot(data = world) +
   geom_sf() +
-  geom_point(data = dat_at, aes(x = Lon, y = Lat, color = Gear, shape = Gear), alpha = 0.3) +
+  geom_point(data = dat %>% filter(Gear != "BT"), aes(x = Lon, y = Lat, color = Gear, shape = Gear), alpha = 0.3) +
   coord_sf(xlim = c(-179, -157), ylim = c(54, 65), expand = FALSE) +
   scale_x_continuous(breaks = c(-178, -158)) +
   scale_y_continuous(breaks = c(55, 64)) +
@@ -45,7 +42,7 @@ map_at <- ggplot(data = world) +
 map_at
 
 # Combined plot of locations for 2018
-at_avo <- rbind.data.frame(dat_at[, c(1:3, 5, 8)] %>% filter(Gear == "AT2" & Year == 2018),
+at_avo <- rbind.data.frame(dat[, c(1:3, 5, 8)] %>% filter(Gear == "AT2" & Year == 2018),
                            dat_avo[, c(1:3, 5, 8)])
 at_avo_map <- ggplot(data = world) +
   geom_sf() +
@@ -58,7 +55,7 @@ at_avo_map <- ggplot(data = world) +
 at_avo_map
 
 # Mean depth (comparing AT2 & AT3 gear labels) - they're the same?
-mean_depth <- dat_at %>% 
+mean_depth <- dat %>% 
   group_by(Gear, Year) %>%
   summarize(mean_depth = mean(depth))
 
@@ -80,25 +77,33 @@ at_avo_mean_depth <- ggplot(data = world) +
 at_avo_mean_depth
 
 # Abundance-at-depth by survey
-at_avo$abundance <- c(dat_at[dat_at$Gear == "AT2" & dat_at$Year == 2018, ]$Catch_KG,
-                      dat_avo$sA)
+abundance_depth <- function(df, gear, label) {
+  colnames(df)[4] <- "abundance"  # rename column for simpler plotting
+  
+  plot <- df %>% 
+    filter(Gear == gear & Year == 2018) %>%
+    mutate(depth_bin = cut(depth, breaks = seq(0, 370, by = 10))) %>%
+    group_by(Gear, depth_bin) %>%
+    summarize(abundance = mean(abundance)) %>%
+    ggplot(data = ., aes(x = Gear, y = depth_bin, fill = abundance)) +
+    geom_tile() +
+    scale_fill_viridis(name = label) +
+    ylab("Depth Bin")
+  
+  return(plot)
+}
 
-abundance_depth <- at_avo %>%
-  mutate(depth_bin = cut(depth, breaks = seq(0, 370, by = 10))) %>%
-  group_by(Gear, depth_bin) %>%
-  summarize(abundance = mean(abundance))
+at_abund <- abundance_depth(dat, gear = "AT2", label = "Abundance (kg)")
+at_abund
 
-ggplot(data = abundance_depth %>% filter(Gear == "AT2"), 
-       aes(x = Gear, y = depth_bin, fill = abundance)) +
-  geom_tile() +
-  scale_fill_viridis(name = "Abundance (kg)") +
-  ylab("Depth Bin")
+avo_abund <- abundance_depth(dat_avo, gear = "AVO", label = "Abundance (sA)")
+avo_abund
 
-ggplot(data = abundance_depth %>% filter(Gear == "AVO"), 
-       aes(x = Gear, y = depth_bin, fill = abundance)) +
-  geom_tile() +
-  scale_fill_viridis(name = "Abundance (sA)") +
-  ylab("Depth Bin")
+bt_abund <- abundance_depth(dat, gear = "BT", label = "Abundance (kg)")
+bt_abund
+
+abund_depth_plot <- plot_grid(at_abund, avo_abund, bt_abund, ncol = 3)
+abund_depth_plot
 
 # Depth-weighted abundance (biomass or backscatter) estimates for both surveys
 
