@@ -13,8 +13,16 @@ library(RTMB)
 library(fmesher)
 library(Matrix)
 library(sf)
-library(viridisLite)
+library(viridis)
 library(here)
+library(ggplot2)
+
+# Set ggplot theme
+if (!requireNamespace("ggsidekick", quietly = TRUE)) {
+  devtools::install_github("seananderson/ggsidekick")
+}
+library(ggsidekick)
+theme_set(theme_sleek())
 
 # data(acoustic_and_trawl, package = "FishStatsUtils" )
 # dat <- subset(acoustic_and_trawl, Year == 2018)
@@ -338,3 +346,51 @@ cbind(
   t(parlist$beta_ct),
   tapply(dat$Catch_KG, INDEX = list(factor(dat$Year, levels = year_set), dat$Gear), FUN = length)
 )
+
+# Export results and new plots ------------------------------------------------
+avail_gear <- rbind(
+  cbind.data.frame(Year = year_set, 
+        Proportion = prop_at, 
+        SD = SD_report$Paccoustic,
+        Gear = "AT"),
+  cbind.data.frame(Year = year_set, 
+        Proportion = prop_bt, 
+        SD = SD_report$Ptrawl,
+        Gear = "BT")) 
+
+write.csv(avail_gear, here("Results", "availability_gear.csv"))
+
+# Time series of proportion available
+gear_plot <- ggplot(avail_gear) +
+  geom_line(aes(x = Year, y = Proportion, color = Gear, linetype = Gear)) +
+  geom_ribbon(aes(x = Year, ymin = (Proportion - 2 * SD), ymax = (Proportion + 2 * SD), fill = Gear), alpha = 0.4) +
+  scale_color_manual(values = c("olivedrab3", "slateblue4")) +
+  scale_fill_manual(values = c("olivedrab3", "slateblue4"))
+gear_plot
+
+ggsave(gear_plot, filename = here("Results", "avail_gear_plot.png"),
+       width = 150, height = 90, units = "mm", dpi = 300)
+
+# Bar plot of availability by depth
+avail_depth <- data.frame(t(prop_ct))
+colnames(avail_depth) <- c("<0.5m", "0.5-16m", ">16m")
+avail_depth$Year <- year_set
+avail_depth <- reshape2::melt(avail_depth, 
+                              id.vars = "Year",
+                              variable.name = "Height",
+                              value.name = "Proportion") %>%
+  dplyr::mutate(Height = factor(Height, levels = c(">16m", "0.5-16m", "<0.5m")))
+
+write.csv(avail_depth, here("Results", "availability_depth.csv"))
+
+depth_plot <- ggplot(avail_depth) +
+  geom_bar(aes(x = Year, y = Proportion, fill = Height), 
+           position = "fill", stat = "identity") +
+  scale_fill_viridis(option = "mako", discrete = TRUE, direction = -1, begin = 0.1, end = 0.9)
+depth_plot
+
+ggsave(depth_plot, filename = here("Results", "avail_depth_plot.png"),
+       width = 150, height = 90, units = "mm", dpi = 300)
+
+avail_both <- cowplot::plot_grid(depth_plot, gear_plot, ncol = 1)
+avail_both
