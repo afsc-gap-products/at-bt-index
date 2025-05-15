@@ -109,7 +109,7 @@ jnll_spde <- function(parlist, what = "jnll") {
   for(i in seq_along(b_i)) {
     if(Gear[i] == "BT") {
       yhat <- exp(ln_q + sum(A_is[i, ] * epsilon_sct[, 1, t_i[i]]) + beta_ct[1, t_i[i]] + mu_c[1] + omega_ic[i, 1]) + 
-              exp(ln_q + sum(A_is[i, ] * epsilon_sct[, 2, t_i[i]]) + beta_ct[2, t_i[i]] + mu_c[2] + omega_ic[i, 2])
+        exp(ln_q + sum(A_is[i, ] * epsilon_sct[, 2, t_i[i]]) + beta_ct[2, t_i[i]] + mu_c[2] + omega_ic[i, 2])
     }
     if(Gear[i] == "AT2") {
       yhat <- exp(sum(A_is[i, ] * epsilon_sct[, 2, t_i[i]]) + beta_ct[2, t_i[i]] + mu_c[2] + omega_ic[i, 2])
@@ -125,18 +125,18 @@ jnll_spde <- function(parlist, what = "jnll") {
   }
   
   for(t_index in 1:max(t_i)) {
-  for(c_index in 1:3) {
-    if(t_index == 1) {
-      nll_epsilon <- nll_epsilon - dgmrf(epsilon_sct[, c_index, t_index], 
-                                         Q = Q_epsilon, 
-                                         log = TRUE)
-    } else {
-      nll_epsilon <- nll_epsilon - dgmrf(epsilon_sct[, c_index, t_index], 
-                                         mu = rho * epsilon_sct[,c_index, t_index - 1], 
-                                         Q = Q_epsilon, 
-                                         log = TRUE)
-    }
-  }}
+    for(c_index in 1:3) {
+      if(t_index == 1) {
+        nll_epsilon <- nll_epsilon - dgmrf(epsilon_sct[, c_index, t_index], 
+                                           Q = Q_epsilon, 
+                                           log = TRUE)
+      } else {
+        nll_epsilon <- nll_epsilon - dgmrf(epsilon_sct[, c_index, t_index], 
+                                           mu = rho * epsilon_sct[,c_index, t_index - 1], 
+                                           Q = Q_epsilon, 
+                                           log = TRUE)
+      }
+    }}
   
   for(c_index in 1:3 ) {
     nll_omega <- nll_omega - dgmrf(omega_sc[, c_index], 
@@ -145,19 +145,19 @@ jnll_spde <- function(parlist, what = "jnll") {
   }
   
   for(t_index in 1:max(t_i) ) {
-  for(c_index in 1:3) {
-    if(t_index == 1) {
-      nll_beta <- nll_beta - dnorm(beta_ct[c_index, t_index], 
-                                   mean = 0, 
-                                   sd = sd, 
-                                   log = TRUE)
-    } else {
-      nll_beta <- nll_beta - dnorm(beta_ct[c_index, t_index], 
-                                   mean = rho * beta_ct[c_index, t_index - 1], 
-                                   sd = sd, 
-                                   log = TRUE)
-    }
-  }}
+    for(c_index in 1:3) {
+      if(t_index == 1) {
+        nll_beta <- nll_beta - dnorm(beta_ct[c_index, t_index], 
+                                     mean = 0, 
+                                     sd = sd, 
+                                     log = TRUE)
+      } else {
+        nll_beta <- nll_beta - dnorm(beta_ct[c_index, t_index], 
+                                     mean = rho * beta_ct[c_index, t_index - 1], 
+                                     sd = sd, 
+                                     log = TRUE)
+      }
+    }}
   
   nll_prior <- -1 * dnorm(ln_q, mean = 0, sd = 0.15, log = TRUE)
   if(what == "jnll") {
@@ -176,11 +176,11 @@ jnll_spde <- function(parlist, what = "jnll") {
   omega_gc <- A_gs %*% omega_sc
   epsilon_gct = D_gct = array(0, dim = c(length(area_g), 3, max(t_i)))
   for(t_index in 1:max(t_i)) {
-  for(c_index in 1:3) {
-    epsilon_gct[, c_index,t_index] <- (A_gs %*% epsilon_sct[, c_index, t_index])[, 1]
-    D_gct[,c_index,t_index] <- area_g * exp(A_gs %*% epsilon_sct[, c_index, t_index] + beta_ct[c_index, t_index] + mu_c[c_index] + omega_gc[, c_index])[, 1]
-    index_ct[c_index,t_index] <- sum(area_g * exp(A_gs %*% epsilon_sct[, c_index, t_index] + beta_ct[c_index, t_index] + mu_c[c_index] + omega_gc[, c_index]))
-  }}
+    for(c_index in 1:3) {
+      epsilon_gct[, c_index,t_index] <- (A_gs %*% epsilon_sct[, c_index, t_index])[, 1]
+      D_gct[,c_index,t_index] <- area_g * exp(A_gs %*% epsilon_sct[, c_index, t_index] + beta_ct[c_index, t_index] + mu_c[c_index] + omega_gc[, c_index])[, 1]
+      index_ct[c_index,t_index] <- sum(area_g * exp(A_gs %*% epsilon_sct[, c_index, t_index] + beta_ct[c_index, t_index] + mu_c[c_index] + omega_gc[, c_index]))
+    }}
   
   Btrawl_t <- colSums(index_ct[1:2, ])
   Baccoustic_t <- colSums(index_ct[2:3, ])
