@@ -27,19 +27,10 @@ theme_set(theme_sleek())
 # data(acoustic_and_trawl, package = "FishStatsUtils" )
 # dat <- subset(acoustic_and_trawl, Year == 2018)
 # dat <- acoustic_and_trawl
-dat <- read.csv(here("data", "data_real.csv"))[, -9]
-dat_avo <- read.csv(here("data", "avo", "2018-AVO-1m-grid-cell.csv"))
-dat_avo <- cbind.data.frame(Lat = dat_avo$latitude,
-                            Lon = dat_avo$longitude,
-                            Year = 2018,
-                            sA = dat_avo$sA,
-                            Gear = "AVO",
-                            AreaSwept_km2 = 1,
-                            Vessel = "none",
-                            depth = dat_avo$height)
+dat <- read.csv(here("data", "data_real.csv"))
 
-# Exclude years as sensitivity 
-dat <- subset(dat, Year == 2018)  # only have 2018 for AVO right now
+# Exclude years as sensitivity
+# dat = subset( dat, Year %in% c(2007:2010, 2012, 2014, 2016, 2018))
 
 dat_sf <- st_as_sf(dat, coords = c("Lon", "Lat"))
 
@@ -58,7 +49,7 @@ grid <- st_make_valid(grid)
 extrap <- st_coordinates(st_centroid(grid))
 extrap <- cbind("Lon" = extrap[, 1], 
                 "Lat" = extrap[, 2], 
-                "Area_in_survey_km2" = st_area(grid) / 1e6)
+                "Area_in_survey_km2" = st_area(grid) / 1e6 )
 
 # Unpack data
 b_i <- dat$Catch_KG
@@ -68,8 +59,8 @@ t_i <- dat$Year - min(dat$Year) + 1
 # Construct mesh
 mesh <- fm_mesh_2d(dat[, c("Lon","Lat")], cutoff = 0.5)
 spde <- fm_fem(mesh, order = 2)
-A_is <- fm_evaluator(mesh, loc = as.matrix(dat[, c("Lon", "Lat")]))$proj$A
-A_gs <- fm_evaluator(mesh, loc = as.matrix(extrap[, c("Lon", "Lat")]))$proj$A
+A_is <- fm_evaluator(mesh, loc = as.matrix(dat[, c('Lon', 'Lat')]))$proj$A
+A_gs <- fm_evaluator(mesh, loc = as.matrix(extrap[, c('Lon', 'Lat')]))$proj$A
 area_g <- extrap[, "Area_in_survey_km2"]
 
 # Extract
@@ -94,7 +85,7 @@ parlist <- list(
 
 # Model construction ----------------------------------------------------------
 jnll_spde <- function(parlist, what = "jnll") {
-  "c" <- ADoverload("c")  # enbale extra RTMB convenience methods
+  "c" <- ADoverload("c")
   "[<-" <- ADoverload("[<-")
   getAll(parlist)
   phi <- exp(ln_phi)
