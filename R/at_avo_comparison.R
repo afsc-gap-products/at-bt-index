@@ -113,7 +113,7 @@ abundance_depth <- function(df, gear, label) {
   colnames(df)[4] <- "abundance"  # rename column for simpler manipulation
   
   plot <- df %>% 
-    filter(Gear == gear & Year == 2018) %>%
+    filter(Gear == gear & Year == 2018 & depth <= 170) %>%
     mutate(depth_bin = cut(depth, breaks = seq(0, 370, by = 10))) %>%
     group_by(Gear, depth_bin) %>%
     summarize(abundance = mean(abundance)) %>%
@@ -131,7 +131,3 @@ abund_depth_plot <- plot_grid(
   abundance_depth(dat, gear = "BT", label = "Abundance (kg)"), 
   ncol = 3)
 abund_depth_plot
-
-# Depth-weighted abundance (biomass or backscatter) estimates for both surveys
-
-# Z-score datasets for basic comparison
