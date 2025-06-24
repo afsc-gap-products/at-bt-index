@@ -83,7 +83,7 @@ abundance <- function(df, gear) {
   colnames(df)[4] <- "abundance"  # rename column for simpler manipulation
   
   df <- df %>%
-    filter(Gear == gear) %>%
+    filter(Gear == gear & Year == 2018) %>%
     group_by(Gear, Lat, Lon) %>%
     summarize(mean_abundance = mean(abundance))
   
