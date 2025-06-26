@@ -125,6 +125,34 @@ abund_depth_plot <- plot_grid(
   ncol = 2)
 abund_depth_plot
 
+# Proportion by depth layer for acoustic data ---------------------------------
+AT2 <- dat %>% filter(Gear == "AT2") 
+AT3 <- dat %>% filter(Gear == "AT3")
+
+total_AT <- AT2$Catch_KG + AT3$Catch_KG
+
+AT2$proportion <- AT2$Catch_KG / total_AT
+AT3$proportion <- AT3$Catch_KG / total_AT
+
+AT_prop <- avo_prop <- ggplot(data = world) +
+  geom_sf() +
+  geom_tile(data = rbind.data.frame(AT2, AT3), 
+            aes(x = Lon, y = Lat, fill = proportion),
+            width = 0.55, height = 0.2) +
+  coord_sf(xlim = c(-179, -157), ylim = c(53.8, 63.5), expand = FALSE) +
+  scale_fill_viridis(option = "mako", direction = -1) +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()) +
+  theme(axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank()) +
+  labs(x = NULL, y = NULL) +
+  facet_grid(Gear ~ Year) +
+  theme(legend.position = "bottom") +
+  guides(color = guide_colorbar(title.position = "top", title.hjust = 0.5))
+AT_prop
+
 # Export plots ----------------------------------------------------------------
 ggsave(stations, filename = here("Results", "avo exploration", "at_bt_stations.png"),
        width = 225, height = 150, units = "mm", dpi = 300)
@@ -134,3 +162,5 @@ ggsave(mean_abundance, filename = here("Results", "avo exploration", "mean_abund
        width = 150, height = 150, units = "mm", dpi = 300, bg = "white")
 ggsave(abund_depth_plot, filename = here("Results", "avo exploration", "abundance_depth.png"),
        width = 170, height = 150, units = "mm", dpi = 300)
+ggsave(AT_prop, filename = here("Results", "avo exploration", "AT proportion.png"),
+       width = 250, height = 80, units = "mm", dpi = 300)
