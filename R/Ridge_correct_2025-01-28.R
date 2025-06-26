@@ -264,24 +264,24 @@ prop_ct <- sweep(index_ct, MARGIN = 2, STAT = colSums(index_ct), FUN = "/")
 prop_bt <- colSums(index_ct[1:2, ]) / colSums(index_ct)
 prop_at <- colSums(index_ct[2:3, ]) / colSums(index_ct)
 
-png(file = here("output", "Fig_5_comparison.png"), 
-    width = 5, height = 6, res = 200, units="in")
-  par(mfrow = c(2, 1), mar = c(3, 3, 1, 1))
-  barplot(prop_ct, 
-          inside = TRUE,
-          space = 0)
-  matplot(x = year_set, y = cbind(prop_bt, prop_at), 
-          col = c("blue", "orange"), lwd = 3, type = "l", lty = "solid",
-          ylim = c(0, 1))
-  polygon(x = c(year_set, rev(year_set)),
-          y = c(prop_at + 2 * SD_report$Paccoustic, rev(prop_at - 2 * SD_report$Paccoustic)),
-          col = rgb(1, 0.5, 0.5, alpha = 0.2), 
-          border = NA)
-  polygon(x = c(year_set, rev(year_set)),
-          y = c(prop_bt + 2 * SD_report$Ptrawl, rev(prop_bt - 2 * SD_report$Ptrawl)),
-          col = rgb(0, 0, 1, alpha = 0.2), 
-          border = NA)
-dev.off()
+# png(file = here("output", "Fig_5_comparison.png"), 
+#     width = 5, height = 6, res = 200, units="in")
+#   par(mfrow = c(2, 1), mar = c(3, 3, 1, 1))
+#   barplot(prop_ct, 
+#           inside = TRUE,
+#           space = 0)
+#   matplot(x = year_set, y = cbind(prop_bt, prop_at), 
+#           col = c("blue", "orange"), lwd = 3, type = "l", lty = "solid",
+#           ylim = c(0, 1))
+#   polygon(x = c(year_set, rev(year_set)),
+#           y = c(prop_at + 2 * SD_report$Paccoustic, rev(prop_at - 2 * SD_report$Paccoustic)),
+#           col = rgb(1, 0.5, 0.5, alpha = 0.2), 
+#           border = NA)
+#   polygon(x = c(year_set, rev(year_set)),
+#           y = c(prop_bt + 2 * SD_report$Ptrawl, rev(prop_bt - 2 * SD_report$Ptrawl)),
+#           col = rgb(0, 0, 1, alpha = 0.2), 
+#           border = NA)
+# dev.off()
 
 # Custom script from Jim Thorson for adding a plot legend
 source(here("R","add_legend.R"))
