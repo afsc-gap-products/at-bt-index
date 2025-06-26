@@ -99,7 +99,7 @@ abundance_depth <- function(df, gear, label) {
     ggplot(data = ., aes(x = Gear, y = depth_bin, fill = abundance)) +
     geom_tile() +
     scale_fill_viridis(name = label) +
-    ylab("Depth Bin")
+    xlab("") + ylab("Depth/Height Bin")
   
   return(plot)
 }
@@ -123,26 +123,28 @@ total_sA <- avo_original %>%
 AVO2 <- avo_original %>% 
   filter(between(height, 0.5, 16)) %>%
   group_by(station, latitude, longitude)  %>%
-  summarise(sA = sum(sA)) 
+  summarise(sA = sum(sA)) %>%
+  ungroup()
 AVO2$proportion <- AVO2$sA / total_sA$sA
 AVO2$gear <- "AVO2"
 
 AVO3 <- avo_original %>% 
   filter(height >= 16) %>%  # not sure what was inclusive of 16 before & there are no observations at 16m
   group_by(station, latitude, longitude)  %>%
-  summarise(sA = sum(sA)) 
+  summarise(sA = sum(sA)) %>%
+  ungroup()
 AVO3$proportion <- AVO3$sA / total_sA$sA
 AVO3$gear <- "AVO3"
 
 avo_prop <- ggplot(data = world) +
   geom_sf() +
-  geom_point(data = rbind.data.frame(AVO2, AVO3), 
-             aes(x = longitude, y = latitude, color = proportion), 
-             shape = "square", size = 2) +
+  geom_tile(data = rbind.data.frame(AVO2, AVO3), 
+            aes(x = longitude, y = latitude, fill = proportion),
+            width = 0.55, height = 0.3) +
   coord_sf(xlim = c(-179, -157), ylim = c(54, 65), expand = FALSE) +
   scale_x_continuous(breaks = c(-178, -158)) +
   scale_y_continuous(breaks = c(55, 64)) +
-  scale_color_viridis(option = "mako", direction = -1) +
+  scale_fill_viridis(option = "mako", direction = -1) +
   labs(x = NULL, y = NULL) +
   facet_wrap(~gear)
 avo_prop
