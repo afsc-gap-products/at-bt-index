@@ -28,7 +28,6 @@ dat_avo <- cbind.data.frame(Lat = avo_original$latitude,
                             depth = avo_original$height)
 
 # Set up maping ---------------------------------------------------------------
-lat_lon <- rbind.data.frame(cbind.data.frame())
 world <- ne_countries(scale = "medium", returnclass = "sf")
 sf_use_s2(FALSE)  # turn off spherical geometry
   
@@ -126,47 +125,6 @@ abund_depth_plot <- plot_grid(
   ncol = 2)
 abund_depth_plot
 
-# Partition AVO into depth layers & plot proportion of backscatter ------------
-# Calculate total backscatter for proportions
-total_sA <- avo_original %>%
-  group_by(station, latitude, longitude) %>%
-  summarize(sA = sum(sA))
-
-# Disaggregate by depth strata & calculate proportions
-# AVO1 <- dat_avo %>% filter(depth <= 0.5)  # no fish at less that 0.5m, as expected!
-AVO2 <- avo_original %>% 
-  filter(between(height, 0.5, 16)) %>%
-  group_by(station, latitude, longitude)  %>%
-  summarise(sA = sum(sA)) %>%
-  ungroup()
-AVO2$proportion <- AVO2$sA / total_sA$sA
-AVO2$gear <- "AVO2"
-
-AVO3 <- avo_original %>% 
-  filter(height >= 16) %>%  # not sure what was inclusive of 16 before & there are no observations at 16m
-  group_by(station, latitude, longitude)  %>%
-  summarise(sA = sum(sA)) %>%
-  ungroup()
-AVO3$proportion <- AVO3$sA / total_sA$sA
-AVO3$gear <- "AVO3"
-
-avo_prop <- ggplot(data = world) +
-  geom_sf() +
-  geom_tile(data = rbind.data.frame(AVO2, AVO3), 
-            aes(x = longitude, y = latitude, fill = proportion),
-            width = 0.55, height = 0.3) +
-  coord_sf(xlim = c(-179, -157), ylim = c(53.8, 63.5), expand = FALSE) +
-  scale_fill_viridis(option = "mako", direction = -1) +
-  theme(axis.title.x=element_blank(),
-        axis.text.x=element_blank(),
-        axis.ticks.x=element_blank()) +
-  theme(axis.title.y=element_blank(),
-        axis.text.y=element_blank(),
-        axis.ticks.y=element_blank()) +
-  labs(x = NULL, y = NULL) +
-  facet_wrap(~gear)
-avo_prop
-
 # Export plots ----------------------------------------------------------------
 ggsave(stations, filename = here("Results", "avo exploration", "at_bt_stations.png"),
        width = 225, height = 150, units = "mm", dpi = 300)
@@ -176,5 +134,3 @@ ggsave(mean_abundance, filename = here("Results", "avo exploration", "mean_abund
        width = 150, height = 150, units = "mm", dpi = 300, bg = "white")
 ggsave(abund_depth_plot, filename = here("Results", "avo exploration", "abundance_depth.png"),
        width = 170, height = 150, units = "mm", dpi = 300)
-ggsave(avo_prop, filename = here("Results", "avo exploration", "avo_proportion.png"),
-       width = 200, height = 80, units = "mm", dpi = 300)
