@@ -366,8 +366,8 @@ write.csv(avail_gear, here("Results", "availability_gear.csv"))
 gear_plot <- ggplot(avail_gear) +
   geom_line(aes(x = Year, y = Proportion, color = Gear, linetype = Gear)) +
   geom_ribbon(aes(x = Year, ymin = (Proportion - 2 * SD), ymax = (Proportion + 2 * SD), fill = Gear), alpha = 0.4) +
-  scale_color_manual(values = c("olivedrab3", "slateblue4")) +
-  scale_fill_manual(values = c("olivedrab3", "slateblue4"))
+  scale_color_manual(values = c("#93329E", "#A4C400")) +
+  scale_fill_manual(values = c("#93329E", "#A4C400"))
 gear_plot
 
 ggsave(gear_plot, filename = here("Results", "avail_gear_plot.png"),
