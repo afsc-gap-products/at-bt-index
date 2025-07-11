@@ -17,36 +17,10 @@ if (!requireNamespace("ggsidekick", quietly = TRUE)) {
 library(ggsidekick)
 theme_set(theme_sleek())
 
-# Connect to Oracle & pull haul information -----------------------------------
-if (file.exists("Z:/Projects/ConnectToOracle.R")) {
-  source("Z:/Projects/ConnectToOracle.R")
-} else {
-  # For those without a ConnectToOracle file
-  channel_products <- odbcConnect(dsn = "AFSC", 
-                         uid = rstudioapi::showPrompt(title = "Username", 
-                                                      message = "Oracle Username", 
-                                                      default = ""), 
-                         pwd = rstudioapi::askForPassword("Enter Password"),
-                         believeNRows = FALSE)
-}
-
-odbcGetInfo(channel_products)  # check connection
-
-# Get haul info
-query_command <- paste0("select a.REGION, a.CRUISE, a.HAUL_TYPE, a.PERFORMANCE, 
-                            a.STATIONID, a.BOTTOM_DEPTH,
-                            floor(a.CRUISE/100) year
-                            from racebase.haul a
-                            where a.PERFORMANCE >=0 and a.HAUL_TYPE = 3 and a.REGION = 'BS'
-                            order by a.CRUISE;")
-# remove restriction and correct for missing stratum in 2022
-# and a.stratum is not null and a.stationid is not null
-
-hauls <- sqlQuery(channel_products, query_command) %>%
-  as_tibble() %>%
-  janitor::clean_names() %>%
-  filter(year == 2018) %>%  # Only 2018 for now
-  rename(station = stationid)  # to make the next step easier
+# Read in & update haul information
+hauls <- read.csv(here("data", "hauls.csv")) %>%
+  filter(year == 2018) %>%
+  rename(station = stationid)
 
 # Read in AVO data & disaggregate by depth/height -----------------------------
 avo_original <- read.csv(here("data", "avo", "2018-AVO-1m-grid-cell.csv"))

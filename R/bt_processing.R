@@ -44,11 +44,16 @@ hauls <- sqlQuery(channel_products, query_command) %>%
 write.csv(hauls, file = here("data", "hauls.csv"))
 
 # Read in pollock CPUE info & combine with haul info --------------------------
-ddc_cpue <- read.csv(here("data", "VAST_ddc_all_2024.csv"))  # density-dependence corrected
+ddc_cpue <- read.csv(here("data", "bt", "VAST_ddc_all_2024.csv"))  # density dependence corrected
 
 cpue_depth <- ddc_cpue %>%
   left_join(hauls, by = "hauljoin") %>%
-  mutate(height = bottom_depth - gear_depth)  # calculate height-off-bottom
-
-
-
+  mutate(height = bottom_depth - gear_depth) %>%  # calculate height off bottom 
+  select(year = year.x, 
+         latitude = start_latitude, 
+         longitude = start_longitude,
+         ddc_cpue_kg_ha, 
+         depth = gear_depth, 
+         height)
+  
+write.csv(cpue_depth, file = here("data", "bt", "bt_processed.csv"))
