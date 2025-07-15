@@ -1,6 +1,6 @@
 #' Script for disaggregating the acoustic vessel of opportunity (AVO) index by
 #' depth layer: 0.5m above the bottom, 0.5m above the bottom to 16m from the
-#' surface, and 16m from the surface and above
+#' bottom, and 16m from the surface and above
 
 library(here)
 library(dplyr)
@@ -35,9 +35,9 @@ total_sA <- avo_original %>%
   group_by(station) %>%
   summarize(total_sA = sum(sA))
 
-# Disaggregate AVO2 (0.5m off bottom to 16m below the surface)
+# Disaggregate AVO2 (0.5m off bottom to 16m off bottom)
 AVO2 <- avo_joined %>% 
-  filter(height > 0.5 & from_surface > 16) %>%
+  filter(height > 0.5 & height < 16) %>%
   group_by(station, latitude, longitude)  %>%
   summarise(sA = sum(sA)) %>%
   ungroup() %>%
@@ -46,8 +46,9 @@ AVO2 <- avo_joined %>%
   filter(!is.na(proportion))
 AVO2$gear <- "AVO2"
 
+# AVO3 (16m off bottom to 16m from the surface)
 AVO3 <- avo_joined %>% 
-  filter(from_surface <= 16) %>%
+  filter(height >= 16 & from_surface >= 16) %>%
   group_by(station, latitude, longitude)  %>%
   summarise(sA = sum(sA)) %>%
   ungroup() %>%
