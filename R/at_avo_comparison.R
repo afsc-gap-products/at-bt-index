@@ -17,42 +17,26 @@ theme_set(theme_sleek())
 
 # Combine data ----------------------------------------------------------------
 dat <- read.csv(here("data", "data_real.csv"))[, -9]
-avo_original <- read.csv(here("data", "avo", "2018-AVO-1m-grid-cell.csv"))
-dat_avo <- cbind.data.frame(Lat = avo_original$latitude,
-                            Lon = avo_original$longitude,
-                            Year = 2018,
-                            sA = avo_original$sA,
-                            Gear = "AVO",
+avo_processed <- read.csv(here("data", "avo", "avo_processed.csv"))
+dat_avo <- cbind.data.frame(Lat = avo_processed$latitude,
+                            Lon = avo_processed$longitude,
+                            Year = avo_processed$year,
+                            sA = avo_processed$sA,
+                            Gear = avo_processed$gear,
                             AreaSwept_km2 = 1,
                             Vessel = "none",
-                            depth = avo_original$height)
+                            depth = avo_processed$height)
 
 # Set up maping ---------------------------------------------------------------
 world <- ne_countries(scale = "medium", returnclass = "sf")
 sf_use_s2(FALSE)  # turn off spherical geometry
   
-# Annual plot of AT & BT stations ---------------------------------------------
-stations <- ggplot(data = world) +
-  geom_sf() +
-  geom_point(data = dat %>% filter(Gear != "AT3"), aes(x = Lon, y = Lat, color = Gear, shape = Gear), alpha = 0.5) +
-  coord_sf(xlim = c(-179, -157), ylim = c(53.8, 63.5), expand = FALSE) +
-  theme(axis.title.x=element_blank(),
-        axis.text.x=element_blank(),
-        axis.ticks.x=element_blank()) +
-  theme(axis.title.y=element_blank(),
-        axis.text.y=element_blank(),
-        axis.ticks.y=element_blank()) +
-  labs(x = NULL, y = NULL) +
-  scale_color_manual(values = c("#93329E", "#A4C400")) +
-  facet_wrap(~ Year)
-stations
-
-# Combined plot of locations for 2018 -----------------------------------------
-all_dat <- rbind.data.frame(dat[, c(1:3, 5, 8)] %>% filter(Year == 2018),
+# Annual plot of survey data points -------------------------------------------
+all_dat <- rbind.data.frame(dat[, c(1:3, 5, 8)],
                             dat_avo[, c(1:3, 5, 8)])
 at_avo_map <- ggplot(data = world) +
   geom_sf() +
-  geom_point(data = all_dat %>% filter(Gear != "AT3"), 
+  geom_point(data = all_dat %>% filter(Gear %in% c("AT2", "BT", "AVO2")), 
              aes(x = Lon, y = Lat, color = Gear, shape = Gear), alpha = 0.7) +
   coord_sf(xlim = c(-179, -157), ylim = c(53.8, 63.5), expand = FALSE) +
   scale_color_manual(values = c("#93329E", "#FDA94F", "#A4C400")) +
@@ -62,68 +46,9 @@ at_avo_map <- ggplot(data = world) +
   theme(axis.title.y=element_blank(),
         axis.text.y=element_blank(),
         axis.ticks.y=element_blank()) +
-  labs(x = NULL, y = NULL) 
+  labs(x = NULL, y = NULL) +
+  facet_wrap(~Year)
 at_avo_map
-
-# Plot of mean abundance by survey --------------------------------------------
-abundance <- function(df, gear) {
-  colnames(df)[4] <- "abundance"  # rename column for simpler manipulation
-  
-  df <- df %>%
-    filter(Gear == gear & Year == 2018) %>%
-    group_by(Gear, Lat, Lon) %>%
-    summarize(mean_abundance = mean(abundance))
-  
-  plot <- ggplot(data = world) +
-    geom_sf() +
-    geom_point(data = df, aes(x = Lon, y = Lat, color = mean_abundance), shape = "square", size = 2) +
-    coord_sf(xlim = c(-179, -157), ylim = c(53.8, 63.5), expand = FALSE) +
-    scale_color_viridis(option = "mako", direction = -1, name = paste0("Abundance (", gear, ")")) +
-    theme(axis.title.x=element_blank(),
-          axis.text.x=element_blank(),
-          axis.ticks.x=element_blank()) +
-    theme(axis.title.y=element_blank(),
-          axis.text.y=element_blank(),
-          axis.ticks.y=element_blank()) +
-    labs(x = NULL, y = NULL) +
-    theme(legend.position = "bottom") +
-    guides(color = guide_colorbar(title.position = "top", title.hjust = 0.5))
-  
-  return(plot)
-}
-
-mean_abundance <- plot_grid(
-  abundance(dat, gear = "AT2"), 
-  abundance(dat, gear = "AT3"), 
-  abundance(dat_avo, gear = "AVO"), 
-  abundance(dat, gear = "BT"), 
-  ncol = 2)
-mean_abundance
-
-# Abundance-at-depth by survey ------------------------------------------------
-abundance_depth <- function(df, gear, label) {
-  colnames(df)[4] <- "abundance"  # rename column for simpler manipulation
-  
-  plot <- df %>% 
-    filter(Gear == gear & Year == 2018 & depth <= 170) %>%
-    mutate(depth_bin = cut(depth, breaks = seq(0, 370, by = 10))) %>%
-    group_by(Gear, depth_bin) %>%
-    summarize(abundance = mean(abundance)) %>%
-    ggplot(data = ., aes(x = Gear, y = depth_bin, fill = abundance)) +
-    geom_tile() +
-    scale_fill_viridis(option = "mako", direction = -1, name = label) +
-    xlab("") + ylab("Depth/Height Bin")
-  
-  return(plot)
-}
-
-abund_depth_plot <- plot_grid(
-  abundance_depth(dat, gear = "AT2", label = "kg"), 
-  abundance_depth(dat, gear = "AT3", label = "kg"), 
-  abundance_depth(dat_avo, gear = "AVO", label = "sA"), 
-  abundance_depth(dat, gear = "BT", label = "kg"), 
-  ncol = 2)
-abund_depth_plot
 
 # Proportion by depth layer for acoustic data ---------------------------------
 AT2 <- dat %>% filter(Gear == "AT2") 
@@ -149,18 +74,108 @@ AT_prop <- avo_prop <- ggplot(data = world) +
         axis.ticks.y=element_blank()) +
   labs(x = NULL, y = NULL) +
   facet_grid(Gear ~ Year) +
-  theme(legend.position = "bottom") +
-  guides(color = guide_colorbar(title.position = "top", title.hjust = 0.5))
+  theme(legend.position = "bottom") 
 AT_prop
 
+# Proportion by depth layer for AVO data --------------------------------------
+# Calculate total backscatter for proportions
+total_sA <- avo_processed %>%
+  group_by(year, station) %>%
+  summarize(total_sA = sum(sA))
+
+# Calculate proportions
+AVO2_prop <- avo_processed %>%
+  filter(gear == "AVO2") %>%
+  group_by(year, station, latitude, longitude, gear)  %>%
+  summarise(sA = sum(sA)) %>%
+  ungroup() %>%
+  left_join(total_sA, by = c("year", "station")) %>%
+  mutate(proportion = sA / total_sA) %>%
+  filter(!is.na(proportion)) 
+
+# AVO3 (16m off bottom to 16m from the surface)
+AVO3_prop <- avo_processed %>%
+  filter(gear == "AVO3") %>%
+  group_by(year, station, latitude, longitude, gear)  %>%
+  summarise(sA = sum(sA)) %>%
+  ungroup() %>%
+  left_join(total_sA, by = c("year", "station")) %>%
+  mutate(proportion = sA / total_sA) %>%
+  filter(!is.na(proportion)) 
+
+# Set up mapping & plot 
+world <- ne_countries(scale = "medium", returnclass = "sf")
+sf_use_s2(FALSE)  # turn off spherical geometry
+# avo_map <- ggplot(data = world) +
+#   geom_sf() +
+#   geom_tile(data = avo_processed,
+#             aes(x = longitude, y = latitude, fill = sA),
+#             width = 0.55, height = 0.3) +
+#   coord_sf(xlim = c(-179, -157), ylim = c(53.8, 63.5), expand = FALSE) +
+#   scale_fill_viridis(option = "mako", direction = -1) +
+#   theme(axis.title.x=element_blank(),
+#         axis.text.x=element_blank(),
+#         axis.ticks.x=element_blank()) +
+#   theme(axis.title.y=element_blank(),
+#         axis.text.y=element_blank(),
+#         axis.ticks.y=element_blank()) +
+#   labs(x = NULL, y = NULL) +
+#   facet_grid(gear ~ year) +
+#   theme(legend.position = "bottom") 
+# avo_map
+
+avo_prop <- ggplot(data = world) +
+  geom_sf() +
+  geom_tile(data = rbind.data.frame(AVO2_prop, AVO3_prop), 
+            aes(x = longitude, y = latitude, fill = proportion),
+            width = 0.55, height = 0.3) +
+  coord_sf(xlim = c(-179, -157), ylim = c(53.8, 63.5), expand = FALSE) +
+  scale_fill_viridis(option = "mako", direction = -1) +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()) +
+  theme(axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank()) +
+  labs(x = NULL, y = NULL) +
+  facet_grid(gear ~ year) +
+  theme(legend.position = "bottom") 
+avo_prop
+
+# Comparison of proportion by depth layer for AT & AVO ------------------------
+avo_total <- rbind.data.frame(AVO2_prop, AVO3_prop) %>%
+  group_by(year, gear) %>%
+  summarize(proportion = mean(proportion)) %>%
+  mutate(interval = if_else(gear == "AVO2", "2", "3")) %>%
+  mutate(gear = "AVO") %>%
+  mutate(interval = factor(interval, levels = c("3", "2")))
+
+at_total <- rbind.data.frame(AT2, AT3) %>%
+  na.omit() %>%  # why are there NaNs?
+  group_by(Year, Gear) %>%
+  summarize(proportion = mean(proportion)) %>%
+  mutate(interval = if_else(Gear == "AT2", "2", "3")) %>%
+  mutate(Gear = "AT") %>%
+  mutate(interval = factor(interval, levels = c("3", "2")))
+colnames(at_mean)[1:2] <- c("year", "gear")
+
+mean_prop <- ggplot(data = rbind.data.frame(avo_mean, at_mean),
+                    aes(x = gear, y = proportion, fill = interval)) +
+  geom_col(position = "stack") +
+  scale_fill_viridis(option = "mako", discrete = TRUE, begin = 0.2, end = 0.8) +
+  facet_wrap(~ year, ncol = 5) 
+mean_prop
+
 # Export plots ----------------------------------------------------------------
-ggsave(stations, filename = here("Results", "avo exploration", "at_bt_stations.png"),
+ggsave(at_avo_map, filename = here("Results", "avo exploration", "at_avo_bt_map.png"),
        width = 225, height = 150, units = "mm", dpi = 300)
-ggsave(at_avo_map, filename = here("Results", "avo exploration", "map2018.png"),
-       width = 150, height = 110, units = "mm", dpi = 300)
 ggsave(mean_abundance, filename = here("Results", "avo exploration", "mean_abundance.png"),
        width = 150, height = 150, units = "mm", dpi = 300, bg = "white")
 ggsave(abund_depth_plot, filename = here("Results", "avo exploration", "abundance_depth.png"),
        width = 170, height = 150, units = "mm", dpi = 300)
 ggsave(AT_prop, filename = here("Results", "avo exploration", "AT proportion.png"),
        width = 250, height = 80, units = "mm", dpi = 300)
+ggsave(avo_prop, filename = here("Results", "avo exploration", "avo_proportion.png"),
+       width = 250, height = 80, units = "mm", dpi = 300)
+ggsave(mean_prop, filename = here("Results", "avo exploration", "mean_proportion.png"),
+       width = 250, height = 100, units = "mm", dpi = 300)

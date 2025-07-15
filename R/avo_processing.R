@@ -116,4 +116,14 @@ avo_prop
 
 ggsave(avo_prop, filename = here("Results", "avo exploration", "avo_proportion.png"),
        width = 250, height = 80, units = "mm", dpi = 300)
-  
+
+# Combine with original dataset & create a new dataframe ----------------------
+dat <- read.csv(here("data", "data_real.csv"))
+dat_new <- dat[, c(1:5)] %>% rename(Abundance = Catch_KG)
+
+avo_out <- avo_processed %>% 
+  select(latitude, longitude, year, sA, gear) %>%
+  filter(gear == "AVO2")  # Only above 16m from the bottom for now
+colnames(avo_out) <- c("Lat", "Lon", "Year", "Abundance", "Gear")
+
+write.csv(rbind.data.frame(dat_new, avo_out), file = here("data", "at_bt_avo.csv"))
