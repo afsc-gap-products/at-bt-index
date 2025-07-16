@@ -396,3 +396,6 @@ ggsave(depth_plot, filename = here("Results", "avail_depth_plot.png"),
 
 avail_both <- cowplot::plot_grid(depth_plot, gear_plot, ncol = 1)
 avail_both
+
+ggsave(avail_both, filename = here("Results", "avail_both.png"),
+       width = 150, height = 150, units = "mm", dpi = 300)
