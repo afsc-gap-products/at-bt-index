@@ -55,6 +55,7 @@ dat <- dat0 %>% group_by(key3) %>%
   select(-start_lon, -end_lon, -start_lat, -end_lat, -start_time,
          -start_date, -end_time, -end_date, -class, -start_log, -end_log,
          -NASC, -numbers_nm2, -biomass_nm2, -numbers, -biomass, -layer,
-         -layer_bottom_height, -layer_top_height, -file,
+         -layer_bottom_height, -layer_top_height,
          -interval, -transect) 
 
+saveRDS(dat, file = here("data", "at", "at_combined.rds"))
