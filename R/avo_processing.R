@@ -123,7 +123,7 @@ dat_new <- dat[, c(1:5)] %>% rename(Abundance = Catch_KG)
 
 avo_out <- avo_processed %>% 
   select(latitude, longitude, year, sA, gear) %>%
-  filter(gear == "AVO2")  # Only above 16m from the bottom for now
+  filter(gear == "AVO3")  # Only above 16m from the bottom for now
 colnames(avo_out) <- c("Lat", "Lon", "Year", "Abundance", "Gear")
 
 write.csv(rbind.data.frame(dat_new, avo_out), file = here("data", "at_bt_avo.csv"))
