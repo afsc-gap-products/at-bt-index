@@ -12,6 +12,7 @@
 *.png
 *.xlsx
 *.docx
+*.rds
 
 # Ignore EBS shelf shapefile (at least for now)
 EBSshelf*
