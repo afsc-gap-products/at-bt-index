@@ -122,8 +122,16 @@ dat <- read.csv(here("data", "data_real.csv"))
 dat_new <- dat[, c(1:5)] %>% rename(Abundance = Catch_KG)
 
 avo_out <- avo_processed %>% 
-  select(latitude, longitude, year, sA, gear) %>%
-  filter(gear == "AVO3")  # Only above 16m from the bottom for now
-colnames(avo_out) <- c("Lat", "Lon", "Year", "Abundance", "Gear")
+  group_by(latitude, longitude, year, gear) %>%
+  summarize(total_sA = sum(sA)) %>%  # get abundance for each survey point
+  ungroup() %>%
+  filter(gear == "AVO3") %>%  # Only above 16m from the bottom for now 
+  select(Lat = latitude, 
+         Lon = longitude, 
+         Year = year, 
+         Abundance = total_sA, 
+         Gear = gear)
 
-write.csv(rbind.data.frame(dat_new, avo_out), file = here("data", "at_bt_avo.csv"))
+write.csv(rbind.data.frame(dat_new, avo_out), 
+          file = here("data", "at_bt_avo_binned.csv"),
+          row.names = FALSE)

@@ -26,12 +26,13 @@ library(ggsidekick)
 theme_set(theme_sleek())
 
 # Read in data
-dat <- read.csv(here("data", "at_bt_avo.csv"))
+# dat <- read.csv(here("data", "at_bt_avo.csv"))
+dat <- read.csv(here("data", "at_bt_avo_binned.csv"))
 
-# Thin AVO3 samples
-which_AVO3 <- which(dat$Gear == "AVO3")
-which_drop <- sample(which_AVO3, replace = FALSE, size = floor(length(which_AVO3) * 0.99))
-dat <- dat[-which_drop, ]
+# # Thin AVO3 samples
+# which_AVO3 <- which(dat$Gear == "AVO3")
+# which_drop <- sample(which_AVO3, replace = FALSE, size = floor(length(which_AVO3) * 0.5))
+# dat <- dat[-which_drop, ]
 
 # Set up grid 
 dat_sf <- st_as_sf(dat, coords = c("Lon", "Lat"))
