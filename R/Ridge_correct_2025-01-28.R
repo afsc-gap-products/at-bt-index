@@ -7,7 +7,7 @@
 #' model was moved to RTMB, which allowed a ridge correction approach to be 
 #' implemented.
 #' 
-#' Code updated and maintained by Nate Lauffenburger and Sophia Wassermann
+#' Code updated and maintained by Sophia Wassermann
 
 library(RTMB)
 library(fmesher)
@@ -24,19 +24,16 @@ if (!requireNamespace("ggsidekick", quietly = TRUE)) {
 library(ggsidekick)
 theme_set(theme_sleek())
 
-# data(acoustic_and_trawl, package = "FishStatsUtils" )
-# dat <- subset(acoustic_and_trawl, Year == 2018)
-# dat <- acoustic_and_trawl
-dat <- read.csv(here("data", "data_real.csv"))
+# Read in data
+dat <- read.csv(here("data", "at_bt_avo.csv"))
 
-# Exclude years as sensitivity
-# dat = subset( dat, Year %in% c(2007:2010, 2012, 2014, 2016, 2018))
+# Thin AVO3 samples
+which_AVO3 <- which(dat$Gear == "AVO3")
+which_drop <- sample(which_AVO3, replace = FALSE, size = floor(length(which_AVO3) * 0.99))
+dat <- dat[-which_drop, ]
 
+# Set up grid 
 dat_sf <- st_as_sf(dat, coords = c("Lon", "Lat"))
-
-#data("eastern_bering_sea_grid", package="FishStatsUtils")
-#extrap = eastern_bering_sea_grid
-#year_set = sort(unique(dat$Year))
 year_set <- min(dat$Year):max(dat$Year)
 
 # Get extrapolation grid from shapefile
@@ -48,20 +45,20 @@ grid <- st_intersection(grid, domain)
 grid <- st_make_valid(grid)
 extrap <- st_coordinates(st_centroid(grid))
 extrap <- cbind("Lon" = extrap[, 1], 
-                "Lat" = extrap[, 2], 
-                "Area_in_survey_km2" = st_area(grid) / 1e6 )
+                "Lat" = extrap[, 2],
+                "Area_in_survey_km2" = units::drop_units(st_area(grid)) / 1e6)
 
 # Unpack data
-b_i <- dat$Catch_KG
+b_i <- dat$Abundance
 Gear <- dat$Gear
 t_i <- dat$Year - min(dat$Year) + 1
 
 # Construct mesh
-mesh <- fm_mesh_2d(dat[, c("Lon","Lat")], cutoff = 0.5)
+mesh <- fm_mesh_2d(dat[, c("Lon", "Lat")], cutoff = 0.5)
 spde <- fm_fem(mesh, order = 2)
-A_is <- fm_evaluator(mesh, loc = as.matrix(dat[, c('Lon', 'Lat')]))$proj$A
-A_gs <- fm_evaluator(mesh, loc = as.matrix(extrap[, c('Lon', 'Lat')]))$proj$A
-area_g <- extrap[, "Area_in_survey_km2"]
+A_is <- fm_evaluator(mesh, loc = as.matrix(dat[, c("Lon", "Lat")]))$proj$A
+A_gs <- fm_evaluator(mesh, loc = as.matrix(extrap[, c("Lon", "Lat")]))$proj$A
+area_g <- extrap[,"Area_in_survey_km2"]
 
 # Extract
 M0 <- spde$c0
@@ -73,6 +70,7 @@ parlist <- list(
   beta_ct = array(0, dim = c(3, max(t_i))),
   epsilon_sct = array(0, dim = c(mesh$n, 3, max(t_i))),
   omega_sc = array(0, dim = c(mesh$n, 3)),
+  log_catchability = c(0),  # Q = E( backscatter / biomass )
   ln_kappa = log(1),
   ln_tau_omega = log(1),
   ln_tau_epsilon = log(1),
@@ -95,6 +93,7 @@ jnll_spde <- function(parlist, what = "jnll") {
   rho <- invf_rho # plogis()
   sd <- exp(ln_sd)
   omega_ic <- A_is %*% omega_sc
+  
   # Likelihood terms
   nll_prior = nll_beta = nll_data = nll_epsilon = nll_omega = 0
   for(i in seq_along(b_i)) {
@@ -102,15 +101,13 @@ jnll_spde <- function(parlist, what = "jnll") {
       yhat <- exp(ln_q + sum(A_is[i, ] * epsilon_sct[, 1, t_i[i]]) + beta_ct[1, t_i[i]] + mu_c[1] + omega_ic[i, 1]) + 
         exp(ln_q + sum(A_is[i, ] * epsilon_sct[, 2, t_i[i]]) + beta_ct[2, t_i[i]] + mu_c[2] + omega_ic[i, 2])
     }
-    if(Gear[i] == "AT2") {
-      yhat <- exp(sum(A_is[i, ] * epsilon_sct[, 2, t_i[i]]) + beta_ct[2, t_i[i]] + mu_c[2] + omega_ic[i, 2])
-    }  
-    if(Gear[i] == "AT3") {
-      yhat <- exp(sum(A_is[i, ] * epsilon_sct[, 3, t_i[i]]) + beta_ct[3, t_i[i]] + mu_c[3] + omega_ic[i, 3])
-    }
+    
+    if(Gear[i] == "AT2") yhat <- exp(sum(A_is[i, ] * epsilon_sct[, 2, t_i[i]]) + beta_ct[2, t_i[i]] + mu_c[2] + omega_ic[i, 2]) 
+    if(Gear[i] == "AT3") yhat <- exp(sum(A_is[i, ] * epsilon_sct[, 3,t_i[i]]) + beta_ct[3, t_i[i]] + mu_c[3] + omega_ic[i, 3])
+    if(Gear[i] == "AVO3") yhat <- exp(sum(A_is[i, ] * epsilon_sct[, 3, t_i[i]]) + beta_ct[3, t_i[i]] + mu_c[3] + omega_ic[i, 3] + log_catchability)
     nll_data <- nll_data - RTMB:::Term(dtweedie(x = b_i[i], 
                                                 mu = yhat, 
-                                                phi = phi, 
+                                                phi = phi,
                                                 p = p, 
                                                 log = TRUE))
   }
@@ -119,23 +116,23 @@ jnll_spde <- function(parlist, what = "jnll") {
     for(c_index in 1:3) {
       if(t_index == 1) {
         nll_epsilon <- nll_epsilon - dgmrf(epsilon_sct[, c_index, t_index], 
-                                           Q = Q_epsilon, 
+                                           Q = Q_epsilon,
                                            log = TRUE)
       } else {
         nll_epsilon <- nll_epsilon - dgmrf(epsilon_sct[, c_index, t_index], 
-                                           mu = rho * epsilon_sct[,c_index, t_index - 1], 
-                                           Q = Q_epsilon, 
+                                           mu = rho * epsilon_sct[, c_index, t_index - 1], 
+                                           Q = Q_epsilon,
                                            log = TRUE)
       }
     }}
   
-  for(c_index in 1:3 ) {
+  for(c_index in 1:3) {
     nll_omega <- nll_omega - dgmrf(omega_sc[, c_index], 
                                    Q = Q_omega, 
                                    log = TRUE)
   }
   
-  for(t_index in 1:max(t_i) ) {
+  for(t_index in 1:max(t_i)) {
     for(c_index in 1:3) {
       if(t_index == 1) {
         nll_beta <- nll_beta - dnorm(beta_ct[c_index, t_index], 
@@ -151,9 +148,7 @@ jnll_spde <- function(parlist, what = "jnll") {
     }}
   
   nll_prior <- -1 * dnorm(ln_q, mean = 0, sd = 0.15, log = TRUE)
-  if(what == "jnll") {
-    out <- nll_data + nll_epsilon + nll_beta + nll_omega + nll_prior
-  } 
+  if(what == "jnll") out <- nll_data + nll_epsilon + nll_beta + nll_omega + nll_prior
   if(what == "diag") {
     out <- list(nll_data = nll_data,
                 nll_epsilon = nll_epsilon,
@@ -166,11 +161,12 @@ jnll_spde <- function(parlist, what = "jnll") {
   index_ct <- matrix(0, nrow = 3, ncol = max(t_i))
   omega_gc <- A_gs %*% omega_sc
   epsilon_gct = D_gct = array(0, dim = c(length(area_g), 3, max(t_i)))
+  
   for(t_index in 1:max(t_i)) {
     for(c_index in 1:3) {
-      epsilon_gct[, c_index,t_index] <- (A_gs %*% epsilon_sct[, c_index, t_index])[, 1]
-      D_gct[,c_index,t_index] <- area_g * exp(A_gs %*% epsilon_sct[, c_index, t_index] + beta_ct[c_index, t_index] + mu_c[c_index] + omega_gc[, c_index])[, 1]
-      index_ct[c_index,t_index] <- sum(area_g * exp(A_gs %*% epsilon_sct[, c_index, t_index] + beta_ct[c_index, t_index] + mu_c[c_index] + omega_gc[, c_index]))
+      epsilon_gct[, c_index, t_index] <- (A_gs %*% epsilon_sct[, c_index, t_index])[, 1]
+      D_gct[, c_index, t_index] <- area_g * exp(A_gs %*% epsilon_sct[, c_index, t_index] + beta_ct[c_index, t_index] + mu_c[c_index] + omega_gc[, c_index])[, 1]
+      index_ct[c_index, t_index] <- sum(area_g * exp(A_gs %*% epsilon_sct[, c_index, t_index] + beta_ct[c_index, t_index] + mu_c[c_index] + omega_gc[, c_index]))
     }}
   
   Btrawl_t <- colSums(index_ct[1:2, ])
@@ -188,12 +184,10 @@ jnll_spde <- function(parlist, what = "jnll") {
   REPORT(Btrawl_t)
   REPORT(Baccoustic_t)
   REPORT(Btotal_t)
-  
-  # bias correction and SEs (be parsimonious to avoid memory issue)
+  # bias-correction and SEs (be parsimonious to avoid memory issue)
   # ADREPORT(Btrawl_t)
   # ADREPORT(Baccoustic_t)
   # ADREPORT(Btotal_t)
-  
   if(isTRUE(extra_adreport)) {
     ADREPORT(Ptrawl_t)
     ADREPORT(Paccoustic_t)
@@ -201,13 +195,15 @@ jnll_spde <- function(parlist, what = "jnll") {
   ADREPORT(index_ct)
   return(out)
 }
+
 extra_adreport <- FALSE
 jnll_spde(parlist)
 
+# 
 map <- list()
-  map$invf_rho <- factor(NA)
-  #map$ln_sd = factor(NA)
-  map$ln_q <- factor(NA)
+map$invf_rho <- factor(NA)
+#map$ln_sd = factor(NA)
+map$ln_q <- factor(NA)
   
 build_obj <- function() {
   MakeADFun( 
@@ -222,10 +218,12 @@ build_obj <- function() {
 }
 
 # Run model -------------------------------------------------------------------
-obj <- build_obj()  # build objective function
-# Run optimization
-opt <- nlminb(obj$par, obj$fn, obj$gr, 
+obj <- build_obj()
+opt <- nlminb(obj$par, 
+              obj$fn, 
+              obj$gr, 
               control = list(iter.max = 1e4, eval.max = 1e4, trace = 1))
+
 parlist <- obj$env$parList()  # parameter estimates
 Hess <- optimHess(opt$par, obj$fn, obj$gr)
 
