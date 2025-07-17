@@ -363,9 +363,21 @@ avail_gear <- rbind(
 write.csv(avail_gear, here("Results", "availability_gear.csv"))
 
 # Time series of proportion available
-gear_plot <- ggplot(avail_gear) +
-  geom_line(aes(x = Year, y = Proportion, color = Gear, linetype = Gear)) +
-  geom_ribbon(aes(x = Year, ymin = (Proportion - 2 * SD), ymax = (Proportion + 2 * SD), fill = Gear), alpha = 0.4) +
+# Get years where there was a survey
+at_years <- unique(dat[Gear == "AT2", ]$Year)
+bt_years <- unique(dat[Gear == "BT", ]$Year)
+
+survey_yr_points <- avail_gear %>% 
+  filter((Gear == "AT" & Year %in% at_years) | 
+           (Gear == "BT" & Year %in% bt_years))
+
+gear_plot <- ggplot() +
+  geom_line(data = avail_gear, 
+            aes(x = Year, y = Proportion, color = Gear, linetype = Gear)) +
+  geom_point(data = survey_yr_points,
+             aes(x = Year, y = Proportion, color = Gear, shape = Gear)) +
+  geom_ribbon(data = avail_gear, 
+              aes(x = Year, ymin = (Proportion - 2 * SD), ymax = (Proportion + 2 * SD), fill = Gear), alpha = 0.4) +
   scale_color_manual(values = c("#93329E", "#A4C400")) +
   scale_fill_manual(values = c("#93329E", "#A4C400"))
 gear_plot
