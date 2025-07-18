@@ -16,6 +16,7 @@ library(sf)
 library(viridis)
 library(here)
 library(ggplot2)
+library(dplyr)
 
 # Set ggplot theme
 if (!requireNamespace("ggsidekick", quietly = TRUE)) {
@@ -287,7 +288,7 @@ prop_at <- colSums(index_ct[2:3, ]) / colSums(index_ct)
 source(here("R","add_legend.R"))
 
 for(c_index in 1:3) {
-  png(file = here("output", paste0("Densities_", c("low", "med", "hi")[c_index], ".png")), 
+  png(file = here("output", "no AVO", paste0("Densities_", c("low", "med", "hi")[c_index], ".png")), 
       width = 7.5, height = 6, units = "in", res = 200)
   par(mfrow=c(3, 4))
   logD_gt <- log(Dhat_gct[, c_index, , drop = FALSE])
@@ -302,7 +303,7 @@ for(c_index in 1:3) {
 
 # Spatio-temporal term
 for(c_index in 1:3){
-  png(file = here("output", paste0("eps_", c("low", "med", "hi")[c_index], ".png")), 
+  png(file = here("output", "no AVO", paste0("eps_", c("low", "med", "hi")[c_index], ".png")), 
       width = 7.5, height = 6, units = "in", res = 200)
   par(mfrow=c(3, 4))
   plotgrid = st_sf(grid, epshat_gct[, c_index, , drop = FALSE], crs = st_crs(grid))
@@ -320,7 +321,7 @@ prop_at_gt <- apply(Dhat_gct[, 2:3, ], MARGIN = c(1, 3), FUN = sum) / apply(Dhat
 D_gzt <- aperm(abind::abind(D_bt_gt, D_at_gt, prop_bt_gt, prop_at_gt, along = 3), c(1, 3, 2))
 
 for(c_index in 1:4) {
-  png(file = here("output", paste0("Densities_", c("BT", "AT", "BTprop", "ATprop")[c_index], ".png")), 
+  png(file = here("output", "no AVO", paste0("Densities_", c("BT", "AT", "BTprop", "ATprop")[c_index], ".png")), 
       width = 7.5, height = 6, units = "in", res = 200)
   par(mfrow=c(3, 4))
   if(c_index %in% 1:2){
@@ -360,7 +361,7 @@ avail_gear <- rbind(
                    SD = SD_report$Ptrawl,
                    Gear = "BT")) 
 
-write.csv(avail_gear, here("Results", "availability_gear.csv"))
+write.csv(avail_gear, here("Results", "availability_gear_noAVO.csv"))
 
 # Time series of proportion available
 # Get years where there was a survey
@@ -382,7 +383,7 @@ gear_plot <- ggplot() +
   scale_fill_manual(values = c("#93329E", "#A4C400"))
 gear_plot
 
-ggsave(gear_plot, filename = here("Results", "avail_gear_plot.png"),
+ggsave(gear_plot, filename = here("Results", "avail_gear_plot_noAVO.png"),
        width = 150, height = 90, units = "mm", dpi = 300)
 
 # Bar plot of availability by depth
@@ -395,7 +396,7 @@ avail_depth <- reshape2::melt(avail_depth,
                               value.name = "Proportion") %>%
   dplyr::mutate(Height = factor(Height, levels = c(">16m", "0.5-16m", "<0.5m")))
 
-write.csv(avail_depth, here("Results", "availability_depth.csv"))
+write.csv(avail_depth, here("Results", "availability_depth_noAVO.csv"))
 
 depth_plot <- ggplot(avail_depth) +
   geom_bar(aes(x = Year, y = Proportion, fill = Height), 
@@ -403,11 +404,11 @@ depth_plot <- ggplot(avail_depth) +
   scale_fill_viridis(option = "mako", discrete = TRUE, direction = -1, begin = 0.1, end = 0.9)
 depth_plot
 
-ggsave(depth_plot, filename = here("Results", "avail_depth_plot.png"),
+ggsave(depth_plot, filename = here("Results", "avail_depth_plot_noAVO.png"),
        width = 150, height = 90, units = "mm", dpi = 300)
 
 avail_both <- cowplot::plot_grid(depth_plot, gear_plot, ncol = 1)
 avail_both
 
-ggsave(avail_both, filename = here("Results", "avail_both.png"),
+ggsave(avail_both, filename = here("Results", "avail_both_noAVO.png"),
        width = 150, height = 150, units = "mm", dpi = 300)
