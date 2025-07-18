@@ -5,6 +5,16 @@
 library(here)
 library(dplyr)
 library(tidyr)
+library(ggplot2)
+library(viridis)
+
+# Set ggplot theme
+if (!requireNamespace("ggsidekick", quietly = TRUE)) {
+  devtools::install_github("seananderson/ggsidekick")
+}
+library(ggsidekick)
+theme_set(theme_sleek())
+
 
 # Read in data, which was combined & cleaned in at_read_combine.R
 dat <- readRDS(here("data", "at", "at_combined.rds"))
@@ -170,4 +180,295 @@ write.csv(above3, file = here("data", "at", "above3.csv"), row.names = FALSE)
 ### reliable. Instead, Nate provided a separate dataset which
 ### comes from his paper. so I replace stratum1 with this data
 
+# SNW: load in data and continue with processing ------------------------------
+if(exists("above3") == FALSE) {
+  above3 <- read.csv(here("data", "at", "above3.csv"))
+}
+below3 <- readRDS(here("data", "at", "below3.rds"))
 
+## All those with NA biomass are zero NASC. Nate confirmed this
+## is true. Convert to 0 before merging.
+## below3 %>% filter(is.na(biomass)) %>% pull(NASC)
+below3$biomass[is.na(below3$biomass)] <- 0
+
+## calculate density= (1000*metric tons)/(area)=kg/nm^2 which
+## matches the above3 data set; and calculate key for
+## merging. kg/nm^2 gets converted to kg/km^2 below.
+below3 <- mutate(below3,
+                 stratum1=(1000*biomass)/area,
+                 key=paste(year,round(lat,3),round(lon,3))) %>%
+  select(stratum1, key)
+## Now merge the two. Stratum1=0.5 to 3m; stratum2=3-b2;
+## stratum3= >b2. Need to be careful about what to do with
+## missing values. all.x=TRUE means to keep all values from
+## above3 but drop those from below3. This is needed because some
+## intervals were dropped from above3 (filtered out above) so
+## won't match. There's some old code here for exploring these
+## mismatches.
+ats.wide <- merge(above3, below3, by='key', all.x=TRUE)
+ats.wide %>% group_by(year) %>%
+  summarize(pct.missing.below3=mean(is.na(stratum1)))
+
+missing_in_above3 <- filter(ats.wide, is.na(stratum2))
+missing_in_below3  <- filter(ats.wide, is.na(stratum1))
+write.csv(file = here("data", "at", 'missing_in_above3.csv'), missing_in_above3)
+write.csv(file = here("data", "at", 'missing_in_below3.csv'), missing_in_below3)
+g <- missing_in_below3 %>% ggplot(aes(lon, lat)) +
+  facet_wrap('year') + geom_point()
+ggsave(here("data", "at", 'below3_missing_map.png'), g, width=7, height=6)
+message(paste("Combining above3 and below3.."))
+message(paste(nrow(missing_in_above3), " rows missing in above3"))
+message(paste(nrow(missing_in_below3), " rows missing in below3"))
+## Nate says regarding mismatch in coordinates: This was
+## something with rounding errors when re-exporting using our
+## Echoview software, probably due to a newer version.  This
+## changed the lat/lon values up to 3-4 decimal places.
+##
+## We decided to simply drop those that don't match since it's a
+## small fraction (Except for those outside the EBS) and they are
+## randomly distributed.
+message("Dropping observations with coordinate mismatch")
+ats.wide <- filter(ats.wide, !is.na(stratum1) & !is.na(stratum2) & !is.na(stratum3))
+## rm(x2007, x2008, x2009, x2010, x2012, x2014, x2016, x2018)
+## rm(above3, below3)
+
+## ats.wide %>% group_by(year) %>% summarize(s1=sum(stratum1),
+##                                           s2=sum(stratum2),
+##                                           s3=sum(stratum3)) %>%
+##   pivot_longer(-year)  %>%
+##   ggplot(aes(year, value, color=name)) + geom_line()
+## ggplot(ats.wide, aes(log(stratum1+.01), log(.01+stratum3))) + geom_point()
+g <- ats.wide %>% ggplot(aes(lon, lat, color=log(stratum1))) +
+  facet_wrap('year') + geom_jitter(width=.1, height=.1, size=.5, alpha=.15) +
+  scale_color_viridis(option='magma') + theme_bw()
+ggsave(here("data", "at", 'below3_density_map.png'), g, width=10, height=7)
+
+### Note that stratum1 gets added below when creating the final
+### densities
+
+### The structure of the data is done, now we just need to filter
+### "bad" rows.
+
+### !!! Do the final row filtering
+## Nate says to drop the ones with a surface of <25m since there are few
+## and probably not right anyway and above 450m are where there was no real
+## bottom detected (dealt with later), and also any negative grounds since
+## they are an error
+message("Filtering bad rows...")
+message(paste("number of rows before:", nrow(ats.wide)))
+
+## ### Quick checks
+## g <- dat0 %>% group_by(key2) %>%
+##   summarize(lon=lon[1], lat=lat[1], year=year[1]) %>%
+##   ggplot(aes(lon, lat)) + geom_point() + facet_wrap('year')
+## ggsave('raw_sampling_locations.png', g, width=9, height=6)
+
+## dat0$hour <- hour(dat0$date) + minute(dat0$date)/60
+## dat0$month <- month(dat0$date)
+## g <- ggplot(dat0, aes(hour)) + geom_histogram() + facet_grid(.~year)
+## ggsave('hour_of_day.png', g, width=9, height=7, dpi=)
+## dat0$hour <- dat0$month <- NULL
+
+### ----- Now check for bad observations (rows)
+#### !!!! The actual filtering of these happens at the very end. This helps
+#### with merging the below3m data set below, and is more transparent to
+#### group them together. So this section only explores the weird thing,
+
+### Based on Nate's suggestion we should remove some of these extreme
+### distances as they may be real but are strange and a small percentage
+write.csv(ats.wide[which(!(ats.wide$dist < 1 & ats.wide$dist > .85)),], here("data", "at", 'bad.dist.csv'))
+png(here("data", "at", 'distances.png'), width=7, height=5, units='in', res=500)
+ats.wide %>% group_by(key3) %>% mutate(dist=dist[1]) %>%
+  ungroup() %>% pull(dist) %>% hist(breaks=250) #ecdf() %>% plot()
+ats.wide <- ats.wide %>% ungroup()
+dev.off()
+## There are some weird heights and durations... drop these?
+write.csv(file = here("data", "at", 'weird_heights.csv'), ats.wide[which(ats.wide$bottom < 0),])
+write.csv(file = here("data", "at", 'big_heights.csv'), ats.wide[which(ats.wide$top > 1000),])
+write.csv(file = here("data", "at", 'weird_durations.csv'), ats.wide[which(ats.wide$duration < 0),])
+g <- ggplot(ats.wide, aes(log(surface))) + geom_histogram(bins=100) +
+  geom_vline(xintercept=log(450)) + xlab("log surface height")
+ggsave(here("data", "at", 'surface_heights.png'), g, width=12, height=6, dpi=500)
+write.csv(ats.wide[which(ats.wide$surface<16),], file = here("data", "at", 'shallow_spots.csv'))
+ats.wide <- ats.wide %>%
+  filter(dist < 1 & dist > .85 & ground>0 & ground <1 & surface < 450)
+message(paste("number of rows after:", nrow(ats.wide)))
+
+# SNW: Save the data with three separate strata (0.5 - 3m, 3m - 16m, >16m)
+saveRDS(ats.wide, here("data", "at", "at_3strata.rds"))
+
+## If using <3m add the below3 density to stratum2
+message("Converting density to kg/km^2 and calculating AT2 & AT3 ...")
+## Convert to kg/km^2 from kg/nm^2
+if(use.below3){
+  ats.wide$strata2 <- (ats.wide$stratum1+ats.wide$stratum2)/1.852^2
+} else {
+  stop("fix me! doesnt work with use.below==FALSE")
+  ats.wide$strata2 <- ats.wide$stratum2/1.852^2
+}
+ats.wide$strata3 <- ats.wide$stratum3/1.852^2
+ats.wide <- select(ats.wide, -stratum1, -stratum2, -stratum3)
+
+message("Saving full data set to ats_full.csv before subsampling..")
+if(b2==3){
+  write.csv(ats.wide, file='ats_full_3.csv')
+} else {
+  write.csv(ats.wide, file='ats_full_16.csv')
+}
+
+### Now do the subsampling of data by averaging over multiple
+## intervals to reduce the data set size
+ats.wide$transect <- stringr::str_split(ats.wide$key3, '_',
+                                        simplify=TRUE)[,2] %>% as.numeric()
+idist.fn <- function(lat, lon){
+  ## This function calculates the distance of sequential points
+  ## along a transect in kilometers, assuming the first point is
+  ## 0. This can be then used to detect gaps between points for
+  ## example if there's an island they had to go around
+  n <- length(lat)
+  idist <- c(0, raster::pointDistance(cbind(lon[-n], lat[-n]),
+                                      cbind(lon[-1], lat[-1]),
+                                      lonlat=TRUE)/1000)
+  idist
+}
+
+## The tricky part here is calculating transect2. The
+## cumsum(idist>1) is a cumulative sum over a vector of 0/1
+## represting whether the distance is too big (> 1 km). If they
+## are all close this is a vector of zeroes. If not you'll get
+## two distinct values in transect2, essentially creating two
+## groups. The [transect+.1] part is to avoid duplicating values
+## so they can cleanly be converted into a factor and
+## grouped. Think of transect2 as a new ID showing transect
+## broken into pieces within each one there are no big gaps.
+tmp3 <- ats.wide  %>% group_by(year, transect) %>%
+  ## Break transects apart if too big of gaps
+  mutate(idist=idist.fn(lat, lon),
+         transect2=transect+.1*cumsum(idist>1),
+         tadd=.1*cumsum(idist>1)) %>% ungroup() %>%
+  ## For each transect group sequential points into groups of
+  ## size [n], igroup is a factor representing chunks to be
+  ## averaged together
+  group_by(year, transect2) %>%
+  ## This is the part where we group into 20 consecutive, this
+  ## coudl be a different number change it here
+  mutate(igroup=cumsum(1:n() %% 20 == 0)) %>% ungroup() %>%
+  mutate(igroup=forcats::fct_shuffle(factor(igroup))) # shuffle for plotting
+## Now for each set of points take averages
+ats.wide2 <- tmp3 %>%
+  group_by(year, transect2, igroup) %>%
+  summarize(ni=n(), lat=mean(lat), lon=mean(lon), transect=transect[1],
+            strata2=mean(strata2), strata3=mean(strata3),
+            surface=mean(surface),
+            ground=mean(ground)) %>% ungroup()
+## ni is the number of points in each average, shoudl be 20 but
+## sometimes fewer and we filter below
+
+stopifnot(all.equal(sum(ats.wide2$ni), nrow(tmp3)))
+message("Filtering out interval sets with fewer than 5 intervals")
+message(paste("number of intervals before:", sum(ats.wide2$ni)))
+ats.wide2 <- ats.wide2 %>% filter(ni>=5)
+message(paste("number of intervals after:", sum(ats.wide2$ni)))
+nrow(ats.wide2)
+pdf(here("data", "at", 'subsampled.pdf'), width=6, height=7)
+for(yy in unique(ats.wide2$year)){
+  g <- ggplot(filter(tmp3, year==yy), aes(lon, lat, color=igroup))+
+    geom_point(size=.7, stroke=0,shape=16)+
+    geom_point(data=filter(ats.wide2, year==yy), aes(lon, lat, group=transect2, color=igroup),
+               size=1.5) +
+    theme_bw() + theme(legend.position = "none") +
+    labs(title=yy)
+  print(g)
+}
+dev.off()
+
+### used this code to explore the different grouping cutoff
+## yy <- 2008
+## nrow(filter(ats.wide2, year==yy))
+## zzz <- filter(tmp3, year==yy)
+## ggplot(zzz, aes(lon, lat, color=igroup))+
+##   geom_point(size=.7, stroke=0,shape=16)+
+##   geom_point(data=filter(ats.wide2, year==yy), aes(lon, lat, group=transect2, color=igroup),
+##              size=1) +
+##   theme_bw() + theme(legend.position = "none") +
+##   labs(x='Longitude', y='Latitude')
+## ggsave('subset_50.png', g, width=7, height=4, dpi=800)
+
+
+
+## Melt it for some exploratory ggploting
+message("Making exploratory plots...")
+ats.long <- ats.wide2 %>% gather(key=strata, value=density , strata2,
+                                 strata3) %>% mutate(strata=factor(strata))
+ats.long$strata <- fct_recode(ats.long$strata, '0.5-16m'='strata2', '16+'='strata3')
+
+## Does this match the original data??
+g <- ats.long %>%
+  ggplot(aes(lon, lat)) + geom_point(size=.2, alpha=.5) + facet_wrap('year')
+ggsave(here("data", "at", 'processed_sampling_locations.png'), g, width=9, height=6)
+
+# SNW: haven't run these ------------------------------------------------------
+## Some quick exploratory plots
+g <- ats.long %>% group_by(year,strata) %>%
+  summarize(pct.zero=mean(density==0), count=length(density)) %>%
+  gather(variable, value, -year, -strata) %>%
+  ggplot(aes(year, value, color=strata)) + geom_line() +
+  facet_wrap('variable', scales='free')
+ggsave('zeores_by_year.png', g, width=7, height=6, dpi=500)
+
+
+g <- ggplot(subset(ats.long, density>0), aes(log(density), fill=strata)) +
+  geom_histogram(bins=50, position='identity', alpha=.5) +
+  facet_wrap('year', scales='free_y') + theme_bw()
+ggsave('density_hist_annual.png', g, width=9, height=6, dpi=500)
+g <- ggplot(subset(ats.long, density>0), aes(log(density), fill=strata)) +
+  geom_histogram(bins=50, position='identity', alpha=.5) +
+  theme_bw()
+ggsave('density_hist.png', g, width=7, height=3.5, dpi=500)
+
+jit <- .2
+g <- ggplot(subset(ats.long, density>0), aes(lon, lat, color=log(density))) +
+  geom_jitter(width=jit, height=jit, alpha=.5, size=.5) + facet_grid(strata~year)   + theme_bw() +
+  scale_color_viridis_c()
+ggsave('density_map.png', g, width=15, height=7, dpi=500)
+g <- ggplot(subset(ats.long, density==0), aes(lon, lat)) +
+  geom_jitter(width=jit, height=jit, alpha=.25, size=.2) + facet_grid(strata~year)   + theme_bw()
+ggsave('zeroes_map.png', g, width=15, height=7, dpi=500)
+g <- arrange(ats.long, desc(surface)) %>% filter(strata=='16+') %>%
+  ggplot(aes(lon, lat, size=surface<50, color=surface<50)) +
+  geom_point(alpha=.25) + facet_wrap('year')   + theme_bw()
+ggsave('shallow_map.png', g, width=12, height=6, dpi=500)
+g <- arrange(ats.long, surface) %>% filter(strata=='16+') %>%
+  ggplot(aes(lon, lat, size=surface>300,  color=surface>300)) +
+  geom_point(alpha=.25) + facet_wrap('year')   + theme_bw()
+ggsave('deep_map.png', g, width=12, height=6, dpi=500)
+
+
+### old exploratory code; the conversion is done in the repo now
+## ## Convert AT and BT to kg/km^2
+## x1 <- filter(read.csv('../bts.csv'), density>0)$density
+## x2 <- filter(ats.long, density>0)$density
+## png('../unit_comparisons_BT_AT.png', width=7, height=5, units='in', res=500)
+## par(mfrow=c(2,2), mar=c(3,3,1,1))
+## xlim=c(-8,15)
+## hist(log(x1), main='BT in kg/ha', xlim=xlim, xlab='')
+## hist(log(x2), main='AT in kg/nm^2', xlim=xlim, xlab='')
+## ## Converted
+## xlim=c(-5,15)
+## hist(log(x1/.01), main='BT in kg/km^2', xlim=xlim, xlab='')
+## hist(log(x2/(1.852)^2), main='AT in kg/km^2', xlim=xlim, xlab='')
+## dev.off()
+
+ats.final <- ats.wide2 %>% select(-transect2, -ni, -igroup,
+                                  -transect, -ground)
+setwd('..')
+if(b2==3){
+  message("Writing final output file ats_3.csv to main folder..")
+  write.csv('ats_3.csv', x=ats.final)
+} else {
+  message("Writing final output file ats_16.csv to main folder..")
+  write.csv('ats_16.csv', x=ats.final)
+}
+
+## When done copy all the output files into a separate folder
+## like "EFH_3_output"
