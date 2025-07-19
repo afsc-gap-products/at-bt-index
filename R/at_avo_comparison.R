@@ -166,6 +166,51 @@ mean_prop <- ggplot(data = rbind.data.frame(avo_mean, at_mean),
   facet_wrap(~ year, ncol = 5) 
 mean_prop
 
+# Breakdown of AT data differentiating 0.5-3m ---------------------------------
+at_3strata <- readRDS(here("data", "at", "at_3strata.rds")) %>%
+  select(year, lat, lon, stratum1, stratum2, stratum3) %>%
+  reshape2::melt(id.vars = c("year", "lat", "lon"), variable.name = "interval", value.name = "catch") %>%
+  mutate(interval = case_when(
+    interval == "stratum1" ~ "0.5-3m",
+    interval == "stratum2" ~ "3-16m",
+    interval == "stratum3" ~ ">16m"
+  )) %>%
+  mutate(interval = factor(interval, levels = c(">16m", "3-16m", "0.5-3m"))) %>%
+  group_by(year, lat, lon) %>%
+  mutate(total_catch = sum(catch)) %>%
+  ungroup() %>%
+  mutate(proportion = catch / total_catch) %>%
+  mutate(proportion = replace(proportion, is.nan(proportion), 0))
+
+# Map of proportion in each strata in each year
+map_3strata <- ggplot(data = world) +
+  geom_sf() +
+  geom_tile(data =at_3strata, 
+            aes(x = lon, y = lat, fill = proportion),
+            width = 0.55, height = 0.03) +
+  coord_sf(xlim = c(-179, -157), ylim = c(53.8, 63.5), expand = FALSE) +
+  scale_fill_viridis(option = "mako", direction = -1) +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()) +
+  theme(axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank()) +
+  labs(x = NULL, y = NULL) +
+  facet_grid(interval ~ year) +
+  theme(legend.position = "bottom") 
+# map_3strata
+
+# Annual plot of proportions
+annual_3strata <- at_3strata %>%
+  group_by(year, interval) %>%
+  summarize(proportion = mean(proportion)) %>%
+  ggplot(., aes(x = year, y = proportion, fill = interval)) +
+  geom_col(position = "stack") +
+  scale_fill_viridis(option = "mako", discrete = TRUE, direction = -1, end = 0.7) +
+  ylab("mean proportion")
+annual_3strata
+
 # Export plots ----------------------------------------------------------------
 ggsave(at_avo_map, filename = here("Results", "avo exploration", "at_avo_bt_map.png"),
        width = 225, height = 150, units = "mm", dpi = 300)
@@ -179,3 +224,7 @@ ggsave(avo_prop, filename = here("Results", "avo exploration", "avo_proportion.p
        width = 250, height = 80, units = "mm", dpi = 300)
 ggsave(mean_prop, filename = here("Results", "avo exploration", "mean_proportion.png"),
        width = 250, height = 100, units = "mm", dpi = 300)
+ggsave(map_3strata, filename = here("Results", "avo exploration", "at_proportion_map.png"),
+       width = 250, height = 100, units = "mm", dpi = 300)
+ggsave(annual_3strata, filename = here("Results", "avo exploration", "at_annual_proportion.png"),
+       width = 200, height = 110, units = "mm", dpi = 300)
