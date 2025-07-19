@@ -162,7 +162,7 @@ colnames(at_mean)[1:2] <- c("year", "gear")
 mean_prop <- ggplot(data = rbind.data.frame(avo_mean, at_mean),
                     aes(x = gear, y = proportion, fill = interval)) +
   geom_col(position = "stack") +
-  scale_fill_viridis(option = "mako", discrete = TRUE, begin = 0.2, end = 0.8) +
+  scale_fill_viridis(option = "mako", discrete = TRUE, direction = -1, begin = 0.3, end = 0.7) +
   facet_wrap(~ year, ncol = 5) 
 mean_prop
 
