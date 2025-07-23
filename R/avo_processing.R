@@ -17,6 +17,9 @@ if (!requireNamespace("ggsidekick", quietly = TRUE)) {
 library(ggsidekick)
 theme_set(theme_sleek())
 
+# Whether to make the plots when running the code (set to FALSE to save time)
+plotting <- FALSE
+
 # Year set for AVO
 avo_years <- c(2009, 2010, 2012, 2014:2018)
 
@@ -76,46 +79,48 @@ AVO3_prop <- AVO3 %>%
   filter(!is.na(proportion)) 
 
 # Set up maping & plot --------------------------------------------------------
-world <- ne_countries(scale = "medium", returnclass = "sf")
-sf_use_s2(FALSE)  # turn off spherical geometry
-avo_map <- ggplot(data = world) +
-  geom_sf() +
-  geom_tile(data = avo_processed,
-            aes(x = longitude, y = latitude, fill = sA),
-            width = 0.55, height = 0.3) +
-  coord_sf(xlim = c(-179, -157), ylim = c(53.8, 63.5), expand = FALSE) +
-  scale_fill_viridis(option = "mako", direction = -1) +
-  theme(axis.title.x=element_blank(),
-        axis.text.x=element_blank(),
-        axis.ticks.x=element_blank()) +
-  theme(axis.title.y=element_blank(),
-        axis.text.y=element_blank(),
-        axis.ticks.y=element_blank()) +
-  labs(x = NULL, y = NULL) +
-  facet_grid(gear ~ year) +
-  theme(legend.position = "bottom") 
-avo_map
-
-avo_prop <- ggplot(data = world) +
-  geom_sf() +
-  geom_tile(data = rbind.data.frame(AVO2_prop, AVO3_prop), 
-            aes(x = longitude, y = latitude, fill = proportion),
-            width = 0.55, height = 0.3) +
-  coord_sf(xlim = c(-179, -157), ylim = c(53.8, 63.5), expand = FALSE) +
-  scale_fill_viridis(option = "mako", direction = -1) +
-  theme(axis.title.x=element_blank(),
-        axis.text.x=element_blank(),
-        axis.ticks.x=element_blank()) +
-  theme(axis.title.y=element_blank(),
-        axis.text.y=element_blank(),
-        axis.ticks.y=element_blank()) +
-  labs(x = NULL, y = NULL) +
-  facet_grid(gear ~ year) +
-  theme(legend.position = "bottom") 
-avo_prop
-
-ggsave(avo_prop, filename = here("Results", "avo exploration", "avo_proportion.png"),
-       width = 250, height = 80, units = "mm", dpi = 300)
+if(plotting == TRUE) {
+  world <- ne_countries(scale = "medium", returnclass = "sf")
+  sf_use_s2(FALSE)  # turn off spherical geometry
+  avo_map <- ggplot(data = world) +
+    geom_sf() +
+    geom_tile(data = avo_processed,
+              aes(x = longitude, y = latitude, fill = sA),
+              width = 0.55, height = 0.3) +
+    coord_sf(xlim = c(-179, -157), ylim = c(53.8, 63.5), expand = FALSE) +
+    scale_fill_viridis(option = "mako", direction = -1) +
+    theme(axis.title.x=element_blank(),
+          axis.text.x=element_blank(),
+          axis.ticks.x=element_blank()) +
+    theme(axis.title.y=element_blank(),
+          axis.text.y=element_blank(),
+          axis.ticks.y=element_blank()) +
+    labs(x = NULL, y = NULL) +
+    facet_grid(gear ~ year) +
+    theme(legend.position = "bottom") 
+  avo_map
+  
+  avo_prop <- ggplot(data = world) +
+    geom_sf() +
+    geom_tile(data = rbind.data.frame(AVO2_prop, AVO3_prop), 
+              aes(x = longitude, y = latitude, fill = proportion),
+              width = 0.55, height = 0.3) +
+    coord_sf(xlim = c(-179, -157), ylim = c(53.8, 63.5), expand = FALSE) +
+    scale_fill_viridis(option = "mako", direction = -1) +
+    theme(axis.title.x=element_blank(),
+          axis.text.x=element_blank(),
+          axis.ticks.x=element_blank()) +
+    theme(axis.title.y=element_blank(),
+          axis.text.y=element_blank(),
+          axis.ticks.y=element_blank()) +
+    labs(x = NULL, y = NULL) +
+    facet_grid(gear ~ year) +
+    theme(legend.position = "bottom") 
+  avo_prop
+  
+  ggsave(avo_prop, filename = here("Results", "avo exploration", "avo_proportion.png"),
+         width = 250, height = 80, units = "mm", dpi = 300)
+}
 
 # Combine with original dataset & create a new dataframe ----------------------
 dat <- read.csv(here("data", "data_real.csv"))
@@ -125,7 +130,7 @@ avo_out <- avo_processed %>%
   group_by(latitude, longitude, year, gear) %>%
   summarize(total_sA = sum(sA)) %>%  # get abundance for each survey point
   ungroup() %>%
-  filter(gear == "AVO3") %>%  # Only above 16m from the bottom for now 
+  # filter(gear == "AVO3") %>%  # Only above 16m from the bottom for now 
   select(Lat = latitude, 
          Lon = longitude, 
          Year = year, 
@@ -133,5 +138,5 @@ avo_out <- avo_processed %>%
          Gear = gear)
 
 write.csv(rbind.data.frame(dat_new, avo_out), 
-          file = here("data", "at_bt_avo_binned.csv"),
+          file = here("data", "at_bt_avo_binned_all.csv"),
           row.names = FALSE)
