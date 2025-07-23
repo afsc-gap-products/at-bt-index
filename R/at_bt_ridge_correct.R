@@ -27,7 +27,7 @@ theme_set(theme_sleek())
 
 # Read in data
 # dat <- read.csv(here("data", "at_bt_avo.csv"))
-dat <- read.csv(here("data", "at_bt_avo_binned.csv"))
+dat <- read.csv(here("data", "at_bt_avo_binned_all.csv"))
 
 # # Thin AVO3 samples
 # which_AVO3 <- which(dat$Gear == "AVO3")
@@ -106,6 +106,7 @@ jnll_spde <- function(parlist, what = "jnll") {
     
     if(Gear[i] == "AT2") yhat <- exp(sum(A_is[i, ] * epsilon_sct[, 2, t_i[i]]) + beta_ct[2, t_i[i]] + mu_c[2] + omega_ic[i, 2]) 
     if(Gear[i] == "AT3") yhat <- exp(sum(A_is[i, ] * epsilon_sct[, 3,t_i[i]]) + beta_ct[3, t_i[i]] + mu_c[3] + omega_ic[i, 3])
+    if(Gear[i] == "AVO2") yhat <- exp(sum(A_is[i, ] * epsilon_sct[, 2, t_i[i]]) + beta_ct[2, t_i[i]] + mu_c[2] + omega_ic[i, 2] + log_catchability)
     if(Gear[i] == "AVO3") yhat <- exp(sum(A_is[i, ] * epsilon_sct[, 3, t_i[i]]) + beta_ct[3, t_i[i]] + mu_c[3] + omega_ic[i, 3] + log_catchability)
     nll_data <- nll_data - RTMB:::Term(dtweedie(x = b_i[i], 
                                                 mu = yhat, 
@@ -360,7 +361,7 @@ avail_gear <- rbind(
         SD = SD_report$Ptrawl,
         Gear = "BT")) 
 
-write.csv(avail_gear, here("Results", "availability_gear.csv"))
+write.csv(avail_gear, here("Results", "availability_gear_allAVO.csv"))
 
 # Time series of proportion available
 # Get years where there was a survey
@@ -388,7 +389,7 @@ gear_plot <- ggplot() +
   scale_fill_manual(values = c("#93329E", "#A4C400", "black"))
 gear_plot
 
-ggsave(gear_plot, filename = here("Results", "avail_gear_plot.png"),
+ggsave(gear_plot, filename = here("Results", "avail_gear_plot_allAVO.png"),
        width = 150, height = 90, units = "mm", dpi = 300)
 
 # Bar plot of availability by depth
@@ -401,7 +402,7 @@ avail_depth <- reshape2::melt(avail_depth,
                               value.name = "Proportion") %>%
   dplyr::mutate(Height = factor(Height, levels = c(">16m", "0.5-16m", "<0.5m")))
 
-write.csv(avail_depth, here("Results", "availability_depth.csv"))
+write.csv(avail_depth, here("Results", "availability_depth_allAVO.csv"))
 
 depth_plot <- ggplot(avail_depth) +
   geom_bar(aes(x = Year, y = Proportion, fill = Height), 
@@ -409,11 +410,11 @@ depth_plot <- ggplot(avail_depth) +
   scale_fill_viridis(option = "mako", discrete = TRUE, direction = -1, begin = 0.1, end = 0.9)
 depth_plot
 
-ggsave(depth_plot, filename = here("Results", "avail_depth_plot.png"),
+ggsave(depth_plot, filename = here("Results", "avail_depth_plot_allAVO.png"),
        width = 150, height = 90, units = "mm", dpi = 300)
 
 avail_both <- cowplot::plot_grid(depth_plot, gear_plot, ncol = 1)
 avail_both
 
-ggsave(avail_both, filename = here("Results", "avail_both.png"),
+ggsave(avail_both, filename = here("Results", "avail_both_allAVO.png"),
        width = 150, height = 150, units = "mm", dpi = 300)
