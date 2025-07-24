@@ -268,8 +268,8 @@ Dhat_gct <- rep$D_gct
 # Proportions
 prop_ct <- sweep(index_ct, MARGIN = 2, STAT = colSums(index_ct), FUN = "/")
 
-prop_bt <- colSums(index_ct[1:2, ]) / colSums(index_ct)
-prop_at <- colSums(index_ct[2:3, ]) / colSums(index_ct)
+prop_bt <- colSums(index_ct[1:3, ]) / colSums(index_ct)
+prop_at <- colSums(index_ct[2:4, ]) / colSums(index_ct)
 
 # png(file = here("output", "Fig_5_comparison.png"), 
 #     width = 5, height = 6, res = 200, units="in")
@@ -292,9 +292,10 @@ prop_at <- colSums(index_ct[2:3, ]) / colSums(index_ct)
 
 # Custom script from Jim Thorson for adding a plot legend
 source(here("R","add_legend.R"))
+interval_labels <- c("0.5", "0.5-3", "3-16", "16")
 
-for(c_index in 1:3) {
-  png(file = here("output", paste0("Densities_", c("low", "med", "hi")[c_index], ".png")), 
+for(c_index in 1:4) {
+  png(file = here("output", paste0("Densities_",interval_labels[c_index], ".png")), 
       width = 7.5, height = 6, units = "in", res = 200)
     par(mfrow=c(3, 4))
     logD_gt <- log(Dhat_gct[, c_index, , drop = FALSE])
@@ -308,8 +309,8 @@ for(c_index in 1:3) {
 }
 
 # Spatio-temporal term
-for(c_index in 1:3){
-  png(file = here("output", paste0("eps_", c("low", "med", "hi")[c_index], ".png")), 
+for(c_index in 1:4){
+  png(file = here("output", paste0("eps_", interval_labels[c_index], ".png")), 
       width = 7.5, height = 6, units = "in", res = 200)
     par(mfrow=c(3, 4))
     plotgrid = st_sf(grid, epshat_gct[, c_index, , drop = FALSE], crs = st_crs(grid))
@@ -320,10 +321,11 @@ for(c_index in 1:3){
   dev.off()
 }
 
-D_bt_gt <- apply(Dhat_gct[, 1:2, ], MARGIN = c(1, 3), FUN = sum)
-D_at_gt <- apply(Dhat_gct[, 2:3, ], MARGIN = c(1, 3), FUN = sum)
-prop_bt_gt <- apply(Dhat_gct[, 1:2, ], MARGIN = c(1, 3), FUN = sum) / apply(Dhat_gct, MARGIN = c(1, 3), FUN = sum)
-prop_at_gt <- apply(Dhat_gct[, 2:3, ], MARGIN = c(1, 3), FUN = sum) / apply(Dhat_gct, MARGIN = c(1, 3), FUN = sum)
+# SNW: not sure the following is indexed correctly w/ 4 layers
+D_bt_gt <- apply(Dhat_gct[, 1:3, ], MARGIN = c(1, 3), FUN = sum)
+D_at_gt <- apply(Dhat_gct[, 2:4, ], MARGIN = c(1, 3), FUN = sum)
+prop_bt_gt <- apply(Dhat_gct[, 1:3, ], MARGIN = c(1, 3), FUN = sum) / apply(Dhat_gct, MARGIN = c(1, 3), FUN = sum)
+prop_at_gt <- apply(Dhat_gct[, 2:4, ], MARGIN = c(1, 3), FUN = sum) / apply(Dhat_gct, MARGIN = c(1, 3), FUN = sum)
 D_gzt <- aperm(abind::abind(D_bt_gt, D_at_gt, prop_bt_gt, prop_at_gt, along = 3), c(1, 3, 2))
 
 for(c_index in 1:4) {
@@ -367,17 +369,17 @@ avail_gear <- rbind(
         SD = SD_report$Ptrawl,
         Gear = "BT")) 
 
-write.csv(avail_gear, here("Results", "availability_gear_allAVO.csv"))
+write.csv(avail_gear, here("Results", "availability_gear_4layers.csv"))
 
 # Time series of proportion available
 # Get years where there was a survey
-at_years <- unique(dat[Gear == "AT2", ]$Year)
+at_years <- c(2007:2010, 2012, 2014, 2016, 2018)
 bt_years <- unique(dat[Gear == "BT", ]$Year)
 
 survey_yr_points <- avail_gear %>% 
   filter((Gear == "AT" & Year %in% at_years) | 
            (Gear == "BT" & Year %in% bt_years))
-survey_yr_points <- rbind.data.frame(avail_gear,
+survey_yr_points <- rbind.data.frame(survey_yr_points,
                                      cbind.data.frame(Year = c(2009, 2010, 2012, 2014:2018),
                                                       Proportion = 0,
                                                       SD = 0,
@@ -395,20 +397,20 @@ gear_plot <- ggplot() +
   scale_fill_manual(values = c("#93329E", "#A4C400", "black"))
 gear_plot
 
-ggsave(gear_plot, filename = here("Results", "avail_gear_plot_allAVO.png"),
+ggsave(gear_plot, filename = here("Results", "avail_gear_plot_4layers.png"),
        width = 150, height = 90, units = "mm", dpi = 300)
 
 # Bar plot of availability by depth
 avail_depth <- data.frame(t(prop_ct))
-colnames(avail_depth) <- c("<0.5m", "0.5-16m", ">16m")
+colnames(avail_depth) <- c("<0.5m", "0.5-3m", "3-16m", ">16m")
 avail_depth$Year <- year_set
 avail_depth <- reshape2::melt(avail_depth, 
                               id.vars = "Year",
                               variable.name = "Height",
                               value.name = "Proportion") %>%
-  dplyr::mutate(Height = factor(Height, levels = c(">16m", "0.5-16m", "<0.5m")))
+  dplyr::mutate(Height = factor(Height, levels = c(">16m", "3-16m", "0.5-3m", "<0.5m")))
 
-write.csv(avail_depth, here("Results", "availability_depth_allAVO.csv"))
+write.csv(avail_depth, here("Results", "availability_depth_4layers.csv"))
 
 depth_plot <- ggplot(avail_depth) +
   geom_bar(aes(x = Year, y = Proportion, fill = Height), 
@@ -416,11 +418,12 @@ depth_plot <- ggplot(avail_depth) +
   scale_fill_viridis(option = "mako", discrete = TRUE, direction = -1, begin = 0.1, end = 0.9)
 depth_plot
 
-ggsave(depth_plot, filename = here("Results", "avail_depth_plot_allAVO.png"),
+ggsave(depth_plot, filename = here("Results", "avail_depth_plot_4layers.png"),
        width = 150, height = 90, units = "mm", dpi = 300)
 
+# Both plots together
 avail_both <- cowplot::plot_grid(depth_plot, gear_plot, ncol = 1)
 avail_both
 
-ggsave(avail_both, filename = here("Results", "avail_both_allAVO.png"),
+ggsave(avail_both, filename = here("Results", "avail_both_4layers.png"),
        width = 150, height = 150, units = "mm", dpi = 300)

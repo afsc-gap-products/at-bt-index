@@ -18,7 +18,7 @@ Nate has processed the AVO data for 2009, 2010, 2012 and 2014-2018 into 1m inter
 
 Preliminary results and plots of the proportion of pollock abundance in each depth layer are presented below.
 
-## Updated model results
+## Model results using the AVO \>16m from the bottom
 
 Jim Thorson added the AVO data from c~3~ to the model.
 
@@ -44,6 +44,12 @@ Looking at the more granular AT data, there is a significant proportion of bioma
 
 ![Annual proportion of pollock biomass by depth interval across the survey domain.](Results/avo%20exploration/at_proportion_map.png)
 
+## Model results with 4 depth intervals
+
+Because the AVO does not include the interval from 0.5-3m from the bottom, I split the acoustic data into three intervals, with a split at 3m. Now, the BT survey covers intervals 1-3; the AT survey covers 2-4; the AVO index covers 3 and 4. The results significantly increase the uncertainty for both the BT and AT surveys in years without the AVO. These years (2011 and 2013) are available, but have not been processed. Including both layers does also change the estimated proportion available to the AT survey in some years, corresponding to an increase in the proportion of pollock below 0.5m.
+
+![Proportion by depth layer and gear type for the model with four depth intervals. Points on the bottom graph represent years when a survey occurred.](Results/avail_both_4layers.png)
+
 ## Next steps
 
-We're looking for feedback on whether we need to dig into including the deeper (3-16m from the bottom) AVO data. For the purposes of a combined index, is the information on overlap between the AVO and BT surveys important? If so, how should we handle the lack of AVO data below 3m?
+We're looking for feedback on whether we need to dig into including the deeper (3-16m from the bottom) AVO data. For the purposes of a combined index, is the information on overlap between the AVO and BT surveys important? If so, it seems we would need the AVO index to be available for every year of data collection.
