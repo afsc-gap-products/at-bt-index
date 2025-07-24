@@ -15,6 +15,10 @@ if (!requireNamespace("ggsidekick", quietly = TRUE)) {
 library(ggsidekick)
 theme_set(theme_sleek())
 
+# Set up mapping
+world <- ne_countries(scale = "medium", returnclass = "sf")
+sf_use_s2(FALSE)  # turn off spherical geometry
+
 # Combine data ----------------------------------------------------------------
 dat <- read.csv(here("data", "data_real.csv"))[, -9]
 avo_processed <- read.csv(here("data", "avo", "avo_processed.csv"))
@@ -54,7 +58,7 @@ at_avo_map
 AT2 <- dat %>% filter(Gear == "AT2") 
 AT3 <- dat %>% filter(Gear == "AT3")
 
-total_AT <- AT2$Catch_KG + AT3$Catch_KG
+total_AT <- AT2$Catch_KG + AT3$Catch_KG 
 
 AT2$proportion <- AT2$Catch_KG / total_AT
 AT3$proportion <- AT3$Catch_KG / total_AT
@@ -103,9 +107,7 @@ AVO3_prop <- avo_processed %>%
   mutate(proportion = sA / total_sA) %>%
   filter(!is.na(proportion)) 
 
-# Set up mapping & plot 
-world <- ne_countries(scale = "medium", returnclass = "sf")
-sf_use_s2(FALSE)  # turn off spherical geometry
+# Map of AVO
 # avo_map <- ggplot(data = world) +
 #   geom_sf() +
 #   geom_tile(data = avo_processed,
@@ -151,15 +153,15 @@ avo_total <- rbind.data.frame(AVO2_prop, AVO3_prop) %>%
   mutate(interval = factor(interval, levels = c("3", "2")))
 
 at_total <- rbind.data.frame(AT2, AT3) %>%
-  na.omit() %>%  # why are there NaNs?
+  na.omit() %>%
   group_by(Year, Gear) %>%
   summarize(proportion = mean(proportion)) %>%
   mutate(interval = if_else(Gear == "AT2", "2", "3")) %>%
   mutate(Gear = "AT") %>%
-  mutate(interval = factor(interval, levels = c("3", "2")))
-colnames(at_mean)[1:2] <- c("year", "gear")
+  mutate(interval = factor(interval, levels = c("3", "2"))) %>%
+  rename(year = Year, gear = Gear)
 
-mean_prop <- ggplot(data = rbind.data.frame(avo_mean, at_mean),
+mean_prop <- ggplot(data = rbind.data.frame(avo_total, at_total),
                     aes(x = gear, y = proportion, fill = interval)) +
   geom_col(position = "stack") +
   scale_fill_viridis(option = "mako", discrete = TRUE, direction = -1, begin = 0.3, end = 0.7) +
@@ -167,27 +169,29 @@ mean_prop <- ggplot(data = rbind.data.frame(avo_mean, at_mean),
 mean_prop
 
 # Breakdown of AT data differentiating 0.5-3m ---------------------------------
-at_3strata <- readRDS(here("data", "at", "at_3strata.rds")) %>%
-  select(year, lat, lon, stratum1, stratum2, stratum3) %>%
-  reshape2::melt(id.vars = c("year", "lat", "lon"), variable.name = "interval", value.name = "catch") %>%
+at_3strata <- read.csv(here("data", "at", "ats_16.csv")) %>%  # Using fully filtered & subsampled dataset
+  select(year, lat, lon, strata1, strata2, strata3) %>%
+  reshape2::melt(id.vars = c("year", "lat", "lon"), 
+                 variable.name = "interval", 
+                 value.name = "catch") %>%
   mutate(interval = case_when(
-    interval == "stratum1" ~ "0.5-3m",
-    interval == "stratum2" ~ "3-16m",
-    interval == "stratum3" ~ ">16m"
+    interval == "strata1" ~ "0.5-3m",
+    interval == "strata2" ~ "3-16m",
+    interval == "strata3" ~ ">16m"
   )) %>%
   mutate(interval = factor(interval, levels = c(">16m", "3-16m", "0.5-3m"))) %>%
   group_by(year, lat, lon) %>%
   mutate(total_catch = sum(catch)) %>%
   ungroup() %>%
-  mutate(proportion = catch / total_catch) %>%
-  mutate(proportion = replace(proportion, is.nan(proportion), 0))
+  filter(total_catch > 0) %>%
+  mutate(proportion = catch / total_catch) 
 
 # Map of proportion in each strata in each year
 map_3strata <- ggplot(data = world) +
   geom_sf() +
-  geom_tile(data =at_3strata, 
+  geom_tile(data = at_3strata, 
             aes(x = lon, y = lat, fill = proportion),
-            width = 0.55, height = 0.03) +
+            width = 0.55, height = 0.15) +
   coord_sf(xlim = c(-179, -157), ylim = c(53.8, 63.5), expand = FALSE) +
   scale_fill_viridis(option = "mako", direction = -1) +
   theme(axis.title.x=element_blank(),
@@ -199,7 +203,7 @@ map_3strata <- ggplot(data = world) +
   labs(x = NULL, y = NULL) +
   facet_grid(interval ~ year) +
   theme(legend.position = "bottom") 
-# map_3strata
+map_3strata
 
 # Annual plot of proportions
 annual_3strata <- at_3strata %>%
