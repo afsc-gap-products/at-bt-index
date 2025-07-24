@@ -23,7 +23,7 @@ wd <- here("data", "at")
 dat <- readRDS(here(wd, "at_combined.rds"))
 
 ## whether to use 0.5-3m from the other data set and add this onto the 3-b2 stratum so it goes from 0.5-b2.
-use.below3 <- TRUE
+strata <- 3
 b1 <- 3 ## !!do not change!!, this is **NOT** the lower
 ## breakpoint it has to do with the split AT data sets
 b2 <- 16  # SNW: higher breakpoint?
@@ -190,7 +190,7 @@ write.csv(above3, file = here(wd, "processing", "above3.csv"), row.names = FALSE
 if(exists("above3") == FALSE) {
   above3 <- read.csv(here(wd, "processing", "above3.csv"))
 }
-below3 <- readRDS(here(wd, "below3.rds"))
+below3 <- readRDS(here(wd, "below3.rds"))  # SNW: from at_read_combine.R
 
 #' All those with NA biomass are zero NASC. Nate confirmed this is true. 
 #' Convert to 0 before merging.
@@ -309,11 +309,15 @@ saveRDS(ats.wide, here(wd, "at_3strata.rds"))
 
 ## If using <3m add the below3 density to stratum2
 message("Converting density to kg/km^2 and calculating AT2 & AT3 ...")
+
 ## Convert to kg/km^2 from kg/nm^2
-if(use.below3) {
+if(strata == 2) {
+  message("Combining strata 1 (0.5-3m) and 2 (3-16m)")
   ats.wide$strata2 <- (ats.wide$stratum1 + ats.wide$stratum2) / 1.852^2
-} else {
-  stop("fix me! doesnt work with use.below == FALSE")
+} 
+
+if(strata == 3) {
+  ats.wide$strata1 <- ats.wide$stratum1 / 1.852^2
   ats.wide$strata2 <- ats.wide$stratum2 / 1.852^2
 }
 ats.wide$strata3 <- ats.wide$stratum3 / 1.852^2
@@ -345,7 +349,7 @@ idist.fn <- function(lat, lon){
 #' cumulative sum over a vector of 0/1 representing whether the distance is too 
 #' big (> 1 km). If they are all close this is a vector of zeroes. If not you'll 
 #' get two distinct values in transect2, essentially creating two groups. The 
-#' [transect+.1] part is to avoid duplicating values so they can cleanly be 
+#' [transect + .1] part is to avoid duplicating values so they can cleanly be 
 #' converted into a factor and grouped. Think of transect2 as a new ID showing 
 #' transect broken into pieces within each one there are no big gaps.
 tmp3 <- ats.wide  %>% 
@@ -370,6 +374,7 @@ ats.wide2 <- tmp3 %>%
             lat = mean(lat), 
             lon = mean(lon), 
             transect = transect[1],
+            strata1 = mean(strata1),
             strata2 = mean(strata2), 
             strata3 = mean(strata3),
             surface = mean(surface),
@@ -412,10 +417,11 @@ dev.off()
 ## Melt it for some exploratory ggploting
 message("Making exploratory plots...")
 ats.long <- ats.wide2 %>% 
-  gather(key = strata, value = density, strata2, strata3) %>% 
+  gather(key = strata, value = density, strata1, strata2, strata3) %>% 
   mutate(strata = factor(strata))
 ats.long$strata <- fct_recode(ats.long$strata, 
-                              "0.5-16m" = "strata2", 
+                              "0.5-3m" = "strata1",
+                              "3-16m" = "strata2", 
                               "16+" = "strata3")
 
 ## Does this match the original data??
@@ -482,3 +488,19 @@ if(b2==3){
   message("Writing final output file ats_16.csv to main folder..")
   write.csv(here(wd, "ats_16.csv"), x = ats.final)
 }
+
+# SNW: Reshape and combine with existing dataset ------------------------------
+dat <- read.csv(here("data", "at_bt_avo_binned_all.csv")) %>%
+  filter(!Gear %in% c("AT2", "AT3"))  # remove AT
+
+ats_new <- ats.final %>%
+  select(-surface) %>%
+  rename(AT1 = strata1, AT2 = strata2, AT3 = strata3) %>%
+  reshape2::melt(id.vars = c("lat", "lon", "year"), 
+                 variable.name = "Gear", 
+                 value.name = "Abundance") %>%
+  rename(Lat = lat, Lon = lon, Year = year) %>%
+  select(Lat, Lon, Year, Abundance, Gear)
+
+dat_new <- rbind.data.frame(dat, ats_new)
+write.csv(dat_new, here("data", "dat_all_at.csv"))

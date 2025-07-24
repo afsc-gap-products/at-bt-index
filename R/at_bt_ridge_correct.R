@@ -27,7 +27,7 @@ theme_set(theme_sleek())
 
 # Read in data
 # dat <- read.csv(here("data", "at_bt_avo.csv"))
-dat <- read.csv(here("data", "at_bt_avo_binned.csv"))
+dat <- read.csv(here("data", "dat_all_at.csv"))
 
 # # Thin AVO3 samples
 # which_AVO3 <- which(dat$Gear == "AVO3")
@@ -68,10 +68,10 @@ M1 <- spde$g1
 M2 <- spde$g2
 
 parlist <- list(
-  mu_c = rep(0, 3),
-  beta_ct = array(0, dim = c(3, max(t_i))),
-  epsilon_sct = array(0, dim = c(mesh$n, 3, max(t_i))),
-  omega_sc = array(0, dim = c(mesh$n, 3)),
+  mu_c = rep(0, 4),
+  beta_ct = array(0, dim = c(4, max(t_i))),
+  epsilon_sct = array(0, dim = c(mesh$n, 4, max(t_i))),
+  omega_sc = array(0, dim = c(mesh$n, 4)),
   log_catchability = c(0),  # Q = E( backscatter / biomass )
   ln_kappa = log(1),
   ln_tau_omega = log(1),
@@ -97,16 +97,22 @@ jnll_spde <- function(parlist, what = "jnll") {
   omega_ic <- A_is %*% omega_sc
   
   # Likelihood terms
+  # For the following lines: 1 = <0.5m, 2 = 0.5-3m, 3 = 3-16m, 4 = >16m
   nll_prior = nll_beta = nll_data = nll_epsilon = nll_omega = 0
   for(i in seq_along(b_i)) {
+    # BT covers all intervals from <0.5 to the effective fishing height (16m)
     if(Gear[i] == "BT") {
       yhat <- exp(ln_q + sum(A_is[i, ] * epsilon_sct[, 1, t_i[i]]) + beta_ct[1, t_i[i]] + mu_c[1] + omega_ic[i, 1]) + 
-        exp(ln_q + sum(A_is[i, ] * epsilon_sct[, 2, t_i[i]]) + beta_ct[2, t_i[i]] + mu_c[2] + omega_ic[i, 2])
+        exp(ln_q + sum(A_is[i, ] * epsilon_sct[, 2, t_i[i]]) + beta_ct[2, t_i[i]] + mu_c[2] + omega_ic[i, 2]) +
+        exp(ln_q + sum(A_is[i, ] * epsilon_sct[, 3, t_i[i]]) + beta_ct[3, t_i[i]] + mu_c[3] + omega_ic[i, 3])
     }
-    
-    if(Gear[i] == "AT2") yhat <- exp(sum(A_is[i, ] * epsilon_sct[, 2, t_i[i]]) + beta_ct[2, t_i[i]] + mu_c[2] + omega_ic[i, 2]) 
-    if(Gear[i] == "AT3") yhat <- exp(sum(A_is[i, ] * epsilon_sct[, 3,t_i[i]]) + beta_ct[3, t_i[i]] + mu_c[3] + omega_ic[i, 3])
-    if(Gear[i] == "AVO3") yhat <- exp(sum(A_is[i, ] * epsilon_sct[, 3, t_i[i]]) + beta_ct[3, t_i[i]] + mu_c[3] + omega_ic[i, 3] + log_catchability)
+    # AT disaggregated into 0.5-3, 3-16, and >16
+    if(Gear[i] == "AT1") yhat <- exp(sum(A_is[i, ] * epsilon_sct[, 2, t_i[i]]) + beta_ct[2, t_i[i]] + mu_c[2] + omega_ic[i, 2])
+    if(Gear[i] == "AT2") yhat <- exp(sum(A_is[i, ] * epsilon_sct[, 3, t_i[i]]) + beta_ct[3, t_i[i]] + mu_c[3] + omega_ic[i, 3]) 
+    if(Gear[i] == "AT3") yhat <- exp(sum(A_is[i, ] * epsilon_sct[, 4,t_i[i]]) + beta_ct[4, t_i[i]] + mu_c[4] + omega_ic[i, 4])
+    # AVO only available for 3-16 and >16
+    if(Gear[i] == "AVO2") yhat <- exp(sum(A_is[i, ] * epsilon_sct[, 3, t_i[i]]) + beta_ct[3, t_i[i]] + mu_c[3] + omega_ic[i, 3] + log_catchability)
+    if(Gear[i] == "AVO3") yhat <- exp(sum(A_is[i, ] * epsilon_sct[, 4, t_i[i]]) + beta_ct[4, t_i[i]] + mu_c[4] + omega_ic[i, 4] + log_catchability)
     nll_data <- nll_data - RTMB:::Term(dtweedie(x = b_i[i], 
                                                 mu = yhat, 
                                                 phi = phi,
@@ -115,7 +121,7 @@ jnll_spde <- function(parlist, what = "jnll") {
   }
   
   for(t_index in 1:max(t_i)) {
-    for(c_index in 1:3) {
+    for(c_index in 1:4) {
       if(t_index == 1) {
         nll_epsilon <- nll_epsilon - dgmrf(epsilon_sct[, c_index, t_index], 
                                            Q = Q_epsilon,
@@ -128,14 +134,14 @@ jnll_spde <- function(parlist, what = "jnll") {
       }
     }}
   
-  for(c_index in 1:3) {
+  for(c_index in 1:4) {
     nll_omega <- nll_omega - dgmrf(omega_sc[, c_index], 
                                    Q = Q_omega, 
                                    log = TRUE)
   }
   
   for(t_index in 1:max(t_i)) {
-    for(c_index in 1:3) {
+    for(c_index in 1:4) {
       if(t_index == 1) {
         nll_beta <- nll_beta - dnorm(beta_ct[c_index, t_index], 
                                      mean = 0, 
@@ -160,19 +166,20 @@ jnll_spde <- function(parlist, what = "jnll") {
   }
   
   # Make index
-  index_ct <- matrix(0, nrow = 3, ncol = max(t_i))
+  index_ct <- matrix(0, nrow = 4, ncol = max(t_i))
   omega_gc <- A_gs %*% omega_sc
-  epsilon_gct = D_gct = array(0, dim = c(length(area_g), 3, max(t_i)))
+  epsilon_gct = D_gct = array(0, dim = c(length(area_g), 4, max(t_i)))
   
   for(t_index in 1:max(t_i)) {
-    for(c_index in 1:3) {
+    for(c_index in 1:4) {
       epsilon_gct[, c_index, t_index] <- (A_gs %*% epsilon_sct[, c_index, t_index])[, 1]
       D_gct[, c_index, t_index] <- area_g * exp(A_gs %*% epsilon_sct[, c_index, t_index] + beta_ct[c_index, t_index] + mu_c[c_index] + omega_gc[, c_index])[, 1]
       index_ct[c_index, t_index] <- sum(area_g * exp(A_gs %*% epsilon_sct[, c_index, t_index] + beta_ct[c_index, t_index] + mu_c[c_index] + omega_gc[, c_index]))
     }}
   
-  Btrawl_t <- colSums(index_ct[1:2, ])
-  Baccoustic_t <- colSums(index_ct[2:3, ])
+  # Only producing an index for the BT & AT surveys (for their respective intervals)
+  Btrawl_t <- colSums(index_ct[1:3, ])
+  Baccoustic_t <- colSums(index_ct[2:4, ])
   Btotal_t <- colSums(index_ct)
   Ptrawl_t <- Btrawl_t / Btotal_t
   Paccoustic_t <- Baccoustic_t / Btotal_t
@@ -261,8 +268,8 @@ Dhat_gct <- rep$D_gct
 # Proportions
 prop_ct <- sweep(index_ct, MARGIN = 2, STAT = colSums(index_ct), FUN = "/")
 
-prop_bt <- colSums(index_ct[1:2, ]) / colSums(index_ct)
-prop_at <- colSums(index_ct[2:3, ]) / colSums(index_ct)
+prop_bt <- colSums(index_ct[1:3, ]) / colSums(index_ct)
+prop_at <- colSums(index_ct[2:4, ]) / colSums(index_ct)
 
 # png(file = here("output", "Fig_5_comparison.png"), 
 #     width = 5, height = 6, res = 200, units="in")
@@ -285,9 +292,10 @@ prop_at <- colSums(index_ct[2:3, ]) / colSums(index_ct)
 
 # Custom script from Jim Thorson for adding a plot legend
 source(here("R","add_legend.R"))
+interval_labels <- c("0.5", "0.5-3", "3-16", "16")
 
-for(c_index in 1:3) {
-  png(file = here("output", paste0("Densities_", c("low", "med", "hi")[c_index], ".png")), 
+for(c_index in 1:4) {
+  png(file = here("output", paste0("Densities_",interval_labels[c_index], ".png")), 
       width = 7.5, height = 6, units = "in", res = 200)
     par(mfrow=c(3, 4))
     logD_gt <- log(Dhat_gct[, c_index, , drop = FALSE])
@@ -301,8 +309,8 @@ for(c_index in 1:3) {
 }
 
 # Spatio-temporal term
-for(c_index in 1:3){
-  png(file = here("output", paste0("eps_", c("low", "med", "hi")[c_index], ".png")), 
+for(c_index in 1:4){
+  png(file = here("output", paste0("eps_", interval_labels[c_index], ".png")), 
       width = 7.5, height = 6, units = "in", res = 200)
     par(mfrow=c(3, 4))
     plotgrid = st_sf(grid, epshat_gct[, c_index, , drop = FALSE], crs = st_crs(grid))
@@ -313,10 +321,11 @@ for(c_index in 1:3){
   dev.off()
 }
 
-D_bt_gt <- apply(Dhat_gct[, 1:2, ], MARGIN = c(1, 3), FUN = sum)
-D_at_gt <- apply(Dhat_gct[, 2:3, ], MARGIN = c(1, 3), FUN = sum)
-prop_bt_gt <- apply(Dhat_gct[, 1:2, ], MARGIN = c(1, 3), FUN = sum) / apply(Dhat_gct, MARGIN = c(1, 3), FUN = sum)
-prop_at_gt <- apply(Dhat_gct[, 2:3, ], MARGIN = c(1, 3), FUN = sum) / apply(Dhat_gct, MARGIN = c(1, 3), FUN = sum)
+# SNW: not sure the following is indexed correctly w/ 4 layers
+D_bt_gt <- apply(Dhat_gct[, 1:3, ], MARGIN = c(1, 3), FUN = sum)
+D_at_gt <- apply(Dhat_gct[, 2:4, ], MARGIN = c(1, 3), FUN = sum)
+prop_bt_gt <- apply(Dhat_gct[, 1:3, ], MARGIN = c(1, 3), FUN = sum) / apply(Dhat_gct, MARGIN = c(1, 3), FUN = sum)
+prop_at_gt <- apply(Dhat_gct[, 2:4, ], MARGIN = c(1, 3), FUN = sum) / apply(Dhat_gct, MARGIN = c(1, 3), FUN = sum)
 D_gzt <- aperm(abind::abind(D_bt_gt, D_at_gt, prop_bt_gt, prop_at_gt, along = 3), c(1, 3, 2))
 
 for(c_index in 1:4) {
@@ -360,17 +369,17 @@ avail_gear <- rbind(
         SD = SD_report$Ptrawl,
         Gear = "BT")) 
 
-write.csv(avail_gear, here("Results", "availability_gear.csv"))
+write.csv(avail_gear, here("Results", "availability_gear_4layers.csv"))
 
 # Time series of proportion available
 # Get years where there was a survey
-at_years <- unique(dat[Gear == "AT2", ]$Year)
+at_years <- c(2007:2010, 2012, 2014, 2016, 2018)
 bt_years <- unique(dat[Gear == "BT", ]$Year)
 
 survey_yr_points <- avail_gear %>% 
   filter((Gear == "AT" & Year %in% at_years) | 
            (Gear == "BT" & Year %in% bt_years))
-survey_yr_points <- rbind.data.frame(avail_gear,
+survey_yr_points <- rbind.data.frame(survey_yr_points,
                                      cbind.data.frame(Year = c(2009, 2010, 2012, 2014:2018),
                                                       Proportion = 0,
                                                       SD = 0,
@@ -388,20 +397,20 @@ gear_plot <- ggplot() +
   scale_fill_manual(values = c("#93329E", "#A4C400", "black"))
 gear_plot
 
-ggsave(gear_plot, filename = here("Results", "avail_gear_plot.png"),
+ggsave(gear_plot, filename = here("Results", "avail_gear_plot_4layers.png"),
        width = 150, height = 90, units = "mm", dpi = 300)
 
 # Bar plot of availability by depth
 avail_depth <- data.frame(t(prop_ct))
-colnames(avail_depth) <- c("<0.5m", "0.5-16m", ">16m")
+colnames(avail_depth) <- c("<0.5m", "0.5-3m", "3-16m", ">16m")
 avail_depth$Year <- year_set
 avail_depth <- reshape2::melt(avail_depth, 
                               id.vars = "Year",
                               variable.name = "Height",
                               value.name = "Proportion") %>%
-  dplyr::mutate(Height = factor(Height, levels = c(">16m", "0.5-16m", "<0.5m")))
+  dplyr::mutate(Height = factor(Height, levels = c(">16m", "3-16m", "0.5-3m", "<0.5m")))
 
-write.csv(avail_depth, here("Results", "availability_depth.csv"))
+write.csv(avail_depth, here("Results", "availability_depth_4layers.csv"))
 
 depth_plot <- ggplot(avail_depth) +
   geom_bar(aes(x = Year, y = Proportion, fill = Height), 
@@ -409,11 +418,12 @@ depth_plot <- ggplot(avail_depth) +
   scale_fill_viridis(option = "mako", discrete = TRUE, direction = -1, begin = 0.1, end = 0.9)
 depth_plot
 
-ggsave(depth_plot, filename = here("Results", "avail_depth_plot.png"),
+ggsave(depth_plot, filename = here("Results", "avail_depth_plot_4layers.png"),
        width = 150, height = 90, units = "mm", dpi = 300)
 
+# Both plots together
 avail_both <- cowplot::plot_grid(depth_plot, gear_plot, ncol = 1)
 avail_both
 
-ggsave(avail_both, filename = here("Results", "avail_both.png"),
+ggsave(avail_both, filename = here("Results", "avail_both_4layers.png"),
        width = 150, height = 150, units = "mm", dpi = 300)
