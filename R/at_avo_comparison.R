@@ -7,6 +7,7 @@ library(viridis)
 library(cowplot)
 library(sf)
 library(rnaturalearth)
+library(tidyr)
 
 # Set ggplot theme
 if (!requireNamespace("ggsidekick", quietly = TRUE)) {
@@ -169,7 +170,32 @@ mean_prop <- ggplot(data = rbind.data.frame(avo_total, at_total),
 mean_prop
 
 # Breakdown of AT data differentiating 0.5-3m ---------------------------------
-at_3strata <- read.csv(here("data", "at", "ats_16.csv")) %>%  # Using fully filtered & subsampled dataset
+# Using fully filtered & subsampled dataset
+new_at <- read.csv(here("data", "at", "ats_16.csv"))[, -1]
+
+# Compare new AT dataset to original one & plot
+dat_total <- dat %>% 
+  filter(Gear %in% c("AT2", "AT3")) %>%
+  pivot_wider(id_cols = c(Lat, Lon, Year), 
+              names_from = Gear, 
+              values_from = Catch_KG) %>%
+  mutate(total = AT2 + AT3) %>%
+  select(Lat, Lon, Year, total)
+
+new_at_total <- new_at %>%
+  select(-surface) %>%
+  mutate(total = strata1 + strata2 + strata3) %>%
+  rename(Lat = lat, Lon = lon, Year = year) %>%
+  select(Lat, Lon, Year, total)
+
+total_compare <- dat_total %>% 
+  inner_join(new_at_total, by = c("Lat", "Lon", "Year"), suffix = c("_old", "_new")) %>%
+  mutate(total_dif = total_old - total_new)
+
+format(max(abs(total_compare$total_dif)), scientific = FALSE)  # Check max difference
+  
+# Map of the proportion in each strata in each year
+at_3strata <- new_at %>%  
   select(year, lat, lon, strata1, strata2, strata3) %>%
   reshape2::melt(id.vars = c("year", "lat", "lon"), 
                  variable.name = "interval", 
@@ -186,7 +212,6 @@ at_3strata <- read.csv(here("data", "at", "ats_16.csv")) %>%  # Using fully filt
   filter(total_catch > 0) %>%
   mutate(proportion = catch / total_catch) 
 
-# Map of proportion in each strata in each year
 map_3strata <- ggplot(data = world) +
   geom_sf() +
   geom_tile(data = at_3strata, 
