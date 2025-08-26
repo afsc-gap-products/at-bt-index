@@ -1,6 +1,7 @@
 ---
 title: "Including the AVO"
 format: 
+  pdf: default
   html:
     self-contained: true
 editor: visual
@@ -24,11 +25,11 @@ Jim Thorson added the AVO data from c~3~ to the model.
 
 Initial model:
 
-![Proportion by depth layer and by gear type for the original model (no AVO). Points on the bottom graph represent years when a survey occurred.](Results/avail_both_noAVO.png){width="1000"}
+![Proportion by depth layer and by gear type for the original model (no AVO). Points on the bottom graph represent years when a survey occurred.](Results/avail_both_noAVO.png)
 
 Updated model:
 
-![Proportion by depth layer and gear type for the updated model (including AVO3). Points on the bottom graph represent years when a survey occurred.](Results/avail_both.png){width="1000"}
+![Proportion by depth layer and gear type for the updated model (including AVO3). Points on the bottom graph represent years when a survey occurred.](Results/avail_both.png)
 
 ## Proportion of pollock by depth layer
 
