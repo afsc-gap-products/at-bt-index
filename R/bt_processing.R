@@ -1,4 +1,7 @@
-# Script for processing BTS data for inclusion in the model.
+#' STEP 1: Script for processing BTS data for inclusion in the model. This 
+#' script pulls a record of all hauls from the BTS (also used in processing the
+#' AVO data), and combines this with the estimates of pollock CPUE calculated
+#' using the density-dependent correction in the pollock-ddc repository.
 
 library(here)
 library(dplyr)
@@ -11,20 +14,25 @@ if (!requireNamespace("ggsidekick", quietly = TRUE)) {
 library(ggsidekick)
 theme_set(theme_sleek())
 
+# Create data output folder ---------------------------------------------------
+year <- format(Sys.Date(), "%Y")
+wd <- here("data", year)
+dir.create(wd, showWarnings = FALSE, recursive = TRUE)
+
 # Connect to Oracle & pull haul information -----------------------------------
 if (file.exists("Z:/Projects/ConnectToOracle.R")) {
   source("Z:/Projects/ConnectToOracle.R")
 } else {
   # For those without a ConnectToOracle file
-  channel_products <- odbcConnect(dsn = "AFSC", 
-                                  uid = rstudioapi::showPrompt(title = "Username", 
-                                                               message = "Oracle Username", 
-                                                               default = ""), 
-                                  pwd = rstudioapi::askForPassword("Enter Password"),
-                                  believeNRows = FALSE)
+  channel <- odbcConnect(dsn = "AFSC", 
+                         uid = rstudioapi::showPrompt(title = "Username", 
+                                                      message = "Oracle Username", 
+                                                      default = ""), 
+                         pwd = rstudioapi::askForPassword("Enter Password"),
+                         believeNRows = FALSE)
 }
 
-odbcGetInfo(channel_products)  # check connection
+odbcGetInfo(channel)  # check connection
 
 # Get haul info
 query_command <- paste0("select a.REGION, a.CRUISE, a.HAUL_TYPE, a.PERFORMANCE, 
@@ -36,15 +44,15 @@ query_command <- paste0("select a.REGION, a.CRUISE, a.HAUL_TYPE, a.PERFORMANCE,
 # remove restriction and correct for missing stratum in 2022
 # and a.stratum is not null and a.stationid is not null
 
-hauls <- sqlQuery(channel_products, query_command) %>%
+hauls <- sqlQuery(channel, query_command) %>%
   as_tibble() %>%
   janitor::clean_names() %>%
   filter(year %in% 1982:as.numeric(format(Sys.Date(), "%Y")))  # standard years
 
-write.csv(hauls, file = here("data", "hauls.csv"))
+write.csv(hauls, file = here(wd, "hauls.csv"))
 
 # Read in pollock CPUE info & combine with haul info --------------------------
-ddc_cpue <- read.csv(here("data", "bt", "VAST_ddc_all_2024.csv"))  # density dependence corrected
+ddc_cpue <- read.csv(here("data", "bt", paste0("VAST_ddc_all_", year, ".csv")))  # density dependence corrected
 
 cpue_depth <- ddc_cpue %>%
   left_join(hauls, by = "hauljoin") %>%
@@ -56,4 +64,4 @@ cpue_depth <- ddc_cpue %>%
          depth = gear_depth, 
          height)
   
-write.csv(cpue_depth, file = here("data", "bt", "bt_processed.csv"))
+write.csv(cpue_depth, file = here(wd, "bt_processed.csv"))
