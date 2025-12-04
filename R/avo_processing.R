@@ -57,7 +57,7 @@ AVO3 <- avo_joined %>%
 avo_processed <- rbind.data.frame(AVO2, AVO3) %>%
   select(year, latitude, longitude, station, sA, height, from_surface, gear)
 
-write.csv(avo_processed, file = here(wd, "avo_processed.csv"))
+write.csv(avo_processed, file = here(wd, "avo_processed.csv"), row.names = FALSE)
   
 # Calculate total backscatter for proportions
 total_sA <- avo_original %>%

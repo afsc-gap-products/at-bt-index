@@ -11,7 +11,7 @@ bt_avo <- read.csv(here("data", year, "at_bt_avo_binned_all.csv")) %>%
   filter(!Gear %in% c("AT2", "AT3"))  # remove AT
 
 at_new <- at %>%
-  select(-surface) %>%
+  select(-surface, -X) %>%
   rename(AT1 = strata1, AT2 = strata2, AT3 = strata3) %>%
   reshape2::melt(id.vars = c("lat", "lon", "year"), 
                  variable.name = "Gear", 

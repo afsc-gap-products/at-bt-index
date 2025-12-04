@@ -49,7 +49,7 @@ hauls <- sqlQuery(channel, query_command) %>%
   janitor::clean_names() %>%
   filter(year %in% 1982:as.numeric(format(Sys.Date(), "%Y")))  # standard years
 
-write.csv(hauls, file = here(wd, "hauls.csv"))
+write.csv(hauls, file = here(wd, "hauls.csv"), row.names = FALSE)
 
 # Read in pollock CPUE info & combine with haul info --------------------------
 ddc_cpue <- read.csv(here("data", "bt", paste0("VAST_ddc_all_", year, ".csv")))  # density dependence corrected
@@ -64,4 +64,4 @@ cpue_depth <- ddc_cpue %>%
          depth = gear_depth, 
          height)
   
-write.csv(cpue_depth, file = here(wd, "bt_processed.csv"))
+write.csv(cpue_depth, file = here(wd, "bt_processed.csv"), row.names = FALSE)
