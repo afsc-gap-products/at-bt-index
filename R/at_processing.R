@@ -486,8 +486,8 @@ ats.final <- ats.wide2 %>%
 
 if(b2==3){
   message("Writing final output file ats_3.csv to main folder..")
-  write.csv(here(wd, "ats_3.csv"), x = ats.final)
+  write.csv(ats.final, here(wd, "ats_3.csv"), row.names = FALSE)
 } else {
   message("Writing final output file ats_16.csv to main folder..")
-  write.csv(here(wd, "ats_16.csv"), x = ats.final)
+  write.csv(ats.final, here(wd, "ats_16.csv"), row.names = FALSE)
 }

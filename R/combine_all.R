@@ -20,4 +20,4 @@ at_new <- at %>%
   select(Lat, Lon, Year, Abundance, Gear)
 
 dat_new <- rbind.data.frame(bt_avo, at_new)
-write.csv(dat_new, here("data", year, "dat_all_at.csv"))
+write.csv(dat_new, here("data", year, "dat_all_at.csv"), row.names = FALSE)
