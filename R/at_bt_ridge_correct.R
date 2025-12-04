@@ -17,6 +17,10 @@ library(viridis)
 library(here)
 library(ggplot2)
 library(dplyr)
+library(remotes)
+if (!requireNamespace("akgfmaps", quietly = TRUE)) {
+  install_github("afsc-gap-products/akgfmaps", build_vignettes = TRUE)
+}
 
 # Set ggplot theme
 if (!requireNamespace("ggsidekick", quietly = TRUE)) {
@@ -26,8 +30,8 @@ library(ggsidekick)
 theme_set(theme_sleek())
 
 # Read in data
-# dat <- read.csv(here("data", "at_bt_avo.csv"))
-dat <- read.csv(here("data", "dat_all_at.csv"))
+year <- format(Sys.Date(), "%Y")
+dat <- read.csv(here("data", year, "dat_all_at.csv"))
 
 # # Thin AVO3 samples
 # which_AVO3 <- which(dat$Gear == "AVO3")
@@ -38,12 +42,12 @@ dat <- read.csv(here("data", "dat_all_at.csv"))
 dat_sf <- st_as_sf(dat, coords = c("Lon", "Lat"))
 year_set <- min(dat$Year):max(dat$Year)
 
-# Get extrapolation grid from shapefile
-domain <- st_read(here("shapefiles", "EBSshelf.shp"))
-domain <- st_geometry(domain)
-domain <- st_transform(domain, crs = st_crs("EPSG:4326"))
-grid <- st_make_grid(domain, cellsize = c(0.25,0.25))
-grid <- st_intersection(grid, domain)
+# Get extrapolation grid from akgfmaps package
+ebs <- akgfmaps::get_base_layers(select.region = "sebs")$survey.area
+ebs <- st_geometry(ebs)
+ebs <- st_transform(ebs, crs = st_crs("EPSG:4326"))
+grid <- st_make_grid(ebs, cellsize = c(0.25,0.25))
+grid <- st_intersection(grid, ebs)
 grid <- st_make_valid(grid)
 extrap <- st_coordinates(st_centroid(grid))
 extrap <- cbind("Lon" = extrap[, 1], 
