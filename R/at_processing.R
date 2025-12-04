@@ -39,9 +39,12 @@ stopifnot(b1 == 3)
 dups <- dat$key[which(duplicated(dat$key))]
 tmp <- dat[which(dat$key %in% dups), ]
 tmp <- tmp[order(tmp$key), ]
+
+dir.create(here(wd,"processing"), showWarnings = FALSE, recursive = TRUE)
 write.csv(here(wd, "processing", "duplicated_keys.csv"), x = tmp)
 dups.freq <- group_by(tmp, key) %>%  summarize(count = length(key))
 write.csv(here(wd, "processing", "duplicated_keys_counts.csv"), x = dups.freq)
+
 table(dups.freq$count)
 d1 <- filter(dat, !(key %in% dups))     # unique
 d2 <- filter(dat, key %in% dups)        # non unique
@@ -488,19 +491,3 @@ if(b2==3){
   message("Writing final output file ats_16.csv to main folder..")
   write.csv(here(wd, "ats_16.csv"), x = ats.final)
 }
-
-# SNW: Reshape and combine with existing dataset ------------------------------
-dat <- read.csv(here("data", "at_bt_avo_binned_all.csv")) %>%
-  filter(!Gear %in% c("AT2", "AT3"))  # remove AT
-
-ats_new <- ats.final %>%
-  select(-surface) %>%
-  rename(AT1 = strata1, AT2 = strata2, AT3 = strata3) %>%
-  reshape2::melt(id.vars = c("lat", "lon", "year"), 
-                 variable.name = "Gear", 
-                 value.name = "Abundance") %>%
-  rename(Lat = lat, Lon = lon, Year = year) %>%
-  select(Lat, Lon, Year, Abundance, Gear)
-
-dat_new <- rbind.data.frame(dat, ats_new)
-write.csv(dat_new, here("data", "dat_all_at.csv"))
