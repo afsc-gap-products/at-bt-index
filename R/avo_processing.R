@@ -58,6 +58,20 @@ avo_processed <- rbind.data.frame(AVO2, AVO3) %>%
   select(year, latitude, longitude, station, sA, height, from_surface, gear)
 
 write.csv(avo_processed, file = here(wd, "avo_processed.csv"), row.names = FALSE)
+
+# Bin and export
+avo_out <- avo_processed %>% 
+  group_by(latitude, longitude, year, gear) %>%
+  summarize(total_sA = sum(sA)) %>%  # get abundance for each survey point
+  ungroup() %>%
+  # filter(gear == "AVO3") %>%  # Only above 16m from the bottom for now 
+  select(Lat = latitude, 
+         Lon = longitude, 
+         Year = year, 
+         Abundance = total_sA, 
+         Gear = gear)
+
+write.csv(avo_out, file = here(wd, "avo_binned.csv"), row.names = FALSE)
   
 # Calculate total backscatter for proportions
 total_sA <- avo_original %>%
@@ -112,22 +126,3 @@ if(plotting == TRUE) {
   ggsave(avo_prop2, filename = here("Results", "avo exploration", "avo_prop2.png"),
          width = 250, height = 100, units = "mm", dpi = 300)
 }
-
-# Combine with original dataset & create a new dataframe ----------------------
-dat <- read.csv(here("data", "data_real.csv"))
-dat_new <- dat[, c(1:5)] %>% rename(Abundance = Catch_KG)
-
-avo_out <- avo_processed %>% 
-  group_by(latitude, longitude, year, gear) %>%
-  summarize(total_sA = sum(sA)) %>%  # get abundance for each survey point
-  ungroup() %>%
-  # filter(gear == "AVO3") %>%  # Only above 16m from the bottom for now 
-  select(Lat = latitude, 
-         Lon = longitude, 
-         Year = year, 
-         Abundance = total_sA, 
-         Gear = gear)
-
-write.csv(rbind.data.frame(dat_new, avo_out), 
-          file = here(wd, "at_bt_avo_binned_all.csv"),
-          row.names = FALSE)

@@ -57,10 +57,10 @@ ddc_cpue <- read.csv(here("data", "bt", paste0("VAST_ddc_all_", year, ".csv"))) 
 cpue_depth <- ddc_cpue %>%
   left_join(hauls, by = "hauljoin") %>%
   mutate(height = bottom_depth - gear_depth) %>%  # calculate height off bottom 
-  select(year = year.x, 
-         latitude = start_latitude, 
-         longitude = start_longitude,
-         ddc_cpue_kg_ha, 
+  select(Year = year.x, 
+         Lat = start_latitude, 
+         Lon = start_longitude,
+         Abundance = ddc_cpue_kg_ha, 
          depth = gear_depth, 
          height)
   

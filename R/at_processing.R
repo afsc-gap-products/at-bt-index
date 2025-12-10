@@ -328,9 +328,9 @@ ats.wide <- select(ats.wide, -stratum1, -stratum2, -stratum3)
 
 message("Saving full data set to ats_full.csv before subsampling..")
 if(b2 == 3) {
-  write.csv(ats.wide, file = here(wd, "processing", "ats_full_3.csv"))
+  write.csv(ats.wide, file = here(wd, "processing", "ats_full_3.csv"), row.names = FALSE)
 } else {
-  write.csv(ats.wide, file = here(wd, "processing", "ats_full_16.csv"))
+  write.csv(ats.wide, file = here(wd, "processing", "ats_full_16.csv"), row.names = FALSE)
 }
 
 ## Now do the subsampling of data by averaging over multiple intervals to reduce the data set size

@@ -7,8 +7,8 @@ year <- format(Sys.Date(), "%Y")
 
 # Read in and combine ---------------------------------------------------------
 at <- read.csv(here("data", "at", "ats_16.csv"))
-bt_avo <- read.csv(here("data", year, "at_bt_avo_binned_all.csv")) %>%
-  filter(!Gear %in% c("AT2", "AT3"))  # remove AT
+bt <- read.csv(here("data", year, "bt_processed.csv"))
+avo <- read.csv(here("data", year, "avo_binned.csv")) 
 
 at_new <- at %>%
   select(-surface, -X) %>%
@@ -19,5 +19,11 @@ at_new <- at %>%
   rename(Lat = lat, Lon = lon, Year = year) %>%
   select(Lat, Lon, Year, Abundance, Gear)
 
-dat_new <- rbind.data.frame(bt_avo, at_new)
+bt_new <- bt %>%
+  select(-depth, height) %>%
+  mutate(Gear = "BT") %>%
+  select(Lat, Lon, Year, Abundance, Gear)
+
+
+dat_new <- rbind.data.frame(at_new, bt_new, avo)
 write.csv(dat_new, here("data", year, "dat_all_at.csv"), row.names = FALSE)
