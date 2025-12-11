@@ -2,6 +2,7 @@
 
 library(here)
 library(dplyr)
+library(ggplot2)
 
 year <- format(Sys.Date(), "%Y")
 
@@ -19,11 +20,22 @@ at_new <- at %>%
   rename(Lat = lat, Lon = lon, Year = year) %>%
   select(Lat, Lon, Year, Abundance, Gear)
 
-bt_new <- bt %>%
-  select(-depth, height) %>%
-  mutate(Gear = "BT") %>%
-  select(Lat, Lon, Year, Abundance, Gear)
-
+bt_new <- bt %>% filter(Year >= 2007)
 
 dat_new <- rbind.data.frame(at_new, bt_new, avo)
+  
 write.csv(dat_new, here("data", year, "dat_all_at.csv"), row.names = FALSE)
+
+# Check if raw data looks ok --------------------------------------------------
+# library(ggsidekick)
+# theme_set(theme_sleek())
+# 
+# test <- rbind.data.frame(at_new %>% mutate(Gear = "AT"), 
+#                          bt_new %>% mutate(Gear = "BT"),
+#                          avo %>% mutate(Gear = "AVO")) %>% 
+#   group_by(Year, Gear) %>%
+#   summarize(Mean = mean(Abundance)) %>%
+#   ggplot(.) +
+#   geom_bar(aes(x = Year, y = Mean, fill = Gear), 
+#            position = "dodge", stat = "identity")
+# test

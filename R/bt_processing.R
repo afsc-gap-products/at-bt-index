@@ -6,6 +6,7 @@
 library(here)
 library(dplyr)
 library(RODBC)
+library(ggplot2)
 
 # Set ggplot theme
 if (!requireNamespace("ggsidekick", quietly = TRUE)) {
@@ -57,11 +58,26 @@ ddc_cpue <- read.csv(here("data", "bt", paste0("VAST_ddc_all_", year, ".csv"))) 
 cpue_depth <- ddc_cpue %>%
   left_join(hauls, by = "hauljoin") %>%
   mutate(height = bottom_depth - gear_depth) %>%  # calculate height off bottom 
-  select(Year = year.x, 
-         Lat = start_latitude, 
+  select(Lat = start_latitude, 
          Lon = start_longitude,
-         Abundance = ddc_cpue_kg_ha, 
-         depth = gear_depth, 
-         height)
-  
+         Year = year.x,
+         Abundance = ddc_cpue_kg_ha) %>%
+  mutate(Abundance = Abundance * 100) %>%  # convert from kg/ha to kg/km2
+  mutate(Gear = "BT") %>%
+  filter(Year >= 2007)
+
 write.csv(cpue_depth, file = here(wd, "bt_processed.csv"), row.names = FALSE)
+
+# Compare with original dataset -----------------------------------------------
+# bt_old <- read.csv(here("data", "dat_all_at.csv")) %>%
+#   filter(Gear == "BT") %>%
+#   select(-X)
+# 
+# compare <- rbind.data.frame(cpue_depth %>% mutate(data = "new"),
+#                             bt_old %>% mutate(data = "old")) %>%
+#   group_by(Year, data) %>%
+#   summarize(mean = mean(Abundance)) %>%
+#   ggplot(.) +
+#   geom_bar(aes(x = Year, y = mean, fill = data),
+#            position = "dodge", stat = "identity")
+# compare
