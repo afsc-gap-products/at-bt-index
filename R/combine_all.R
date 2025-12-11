@@ -24,7 +24,7 @@ bt_new <- bt %>% filter(Year >= 2007)
 
 dat_new <- rbind.data.frame(at_new, bt_new, avo)
   
-write.csv(dat_new, here("data", year, "dat_all_at.csv"), row.names = FALSE)
+write.csv(dat_new, here("data", year, "dat_all.csv"), row.names = FALSE)
 
 # Check if raw data looks ok --------------------------------------------------
 # library(ggsidekick)
