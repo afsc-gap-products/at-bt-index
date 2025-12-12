@@ -18,6 +18,9 @@ library(here)
 library(ggplot2)
 library(dplyr)
 library(remotes)
+library(reshape2)
+library(tidyr)
+
 if (!requireNamespace("akgfmaps", quietly = TRUE)) {
   install_github("afsc-gap-products/akgfmaps", build_vignettes = TRUE)
 }
@@ -29,9 +32,9 @@ if (!requireNamespace("ggsidekick", quietly = TRUE)) {
 library(ggsidekick)
 theme_set(theme_sleek())
 
-# Read in data
+# Read in data and set up model inputs ----------------------------------------
 year <- format(Sys.Date(), "%Y")
-dat <- read.csv(here("data", year, "dat_all_at.csv"))
+dat <- read.csv(here("data", year, "dat_all.csv"))
 
 # # Thin AVO3 samples
 # which_AVO3 <- which(dat$Gear == "AVO3")
@@ -49,7 +52,7 @@ ebs <- st_transform(ebs, crs = st_crs("EPSG:4326"))
 grid <- st_make_grid(ebs, cellsize = c(0.25,0.25))
 grid <- st_intersection(grid, ebs)
 grid <- st_make_valid(grid)
-extrap <- st_coordinates(st_centroid(grid))
+extrap <- st_coordinates(st_centroid(grid))  # Warning: st_centroid does not give correct centroids for longitude/latitude data
 extrap <- cbind("Lon" = extrap[, 1], 
                 "Lat" = extrap[, 2],
                 "Area_in_survey_km2" = units::drop_units(st_area(grid)) / 1e6)
@@ -259,7 +262,7 @@ sdrep <- sdreport(obj,
                   getReportCovariance = FALSE)
 rep <- obj$report()
 
-# Extract & plot results ------------------------------------------------------
+# Extract index and proportion ------------------------------------------------
 # Extract index
 SD_report <- as.list(sdrep, report = TRUE, what = "Std. Error")
 index_ct <- as.list(biascor, report = TRUE, what = "Est. (bias.correct)")$index_ct
@@ -275,85 +278,121 @@ prop_ct <- sweep(index_ct, MARGIN = 2, STAT = colSums(index_ct), FUN = "/")
 prop_bt <- colSums(index_ct[1:3, ]) / colSums(index_ct)
 prop_at <- colSums(index_ct[2:4, ]) / colSums(index_ct)
 
-# png(file = here("output", "Fig_5_comparison.png"), 
-#     width = 5, height = 6, res = 200, units="in")
-#   par(mfrow = c(2, 1), mar = c(3, 3, 1, 1))
-#   barplot(prop_ct, 
-#           inside = TRUE,
-#           space = 0)
-#   matplot(x = year_set, y = cbind(prop_bt, prop_at), 
-#           col = c("blue", "orange"), lwd = 3, type = "l", lty = "solid",
-#           ylim = c(0, 1))
-#   polygon(x = c(year_set, rev(year_set)),
-#           y = c(prop_at + 2 * SD_report$Paccoustic, rev(prop_at - 2 * SD_report$Paccoustic)),
-#           col = rgb(1, 0.5, 0.5, alpha = 0.2), 
-#           border = NA)
-#   polygon(x = c(year_set, rev(year_set)),
-#           y = c(prop_bt + 2 * SD_report$Ptrawl, rev(prop_bt - 2 * SD_report$Ptrawl)),
-#           col = rgb(0, 0, 1, alpha = 0.2), 
-#           border = NA)
-# dev.off()
-
-# Custom script from Jim Thorson for adding a plot legend
-source(here("R","add_legend.R"))
+# Plot density by interval ----------------------------------------------------
 interval_labels <- c("0.5", "0.5-3", "3-16", "16")
 
 for(c_index in 1:4) {
-  png(file = here("output", paste0("Densities_",interval_labels[c_index], ".png")), 
-      width = 7.5, height = 6, units = "in", res = 200)
-    par(mfrow=c(3, 4))
-    logD_gt <- log(Dhat_gct[, c_index, , drop = FALSE])
-    logD_gt <- ifelse(logD_gt < max(logD_gt - log(1000)), NA, logD_gt)
-    plotgrid <- st_sf(grid, logD_gt, crs = st_crs(grid))
-    for(t in 1:(dim(Dhat_gct)[[3]])) {
-      plot(plotgrid[, t], max.plot = 20, border = NA, key.pos = NULL, reset = FALSE, pal = viridis, main = year_set[t])
-      add_legend(round(range(plotgrid[[t]], na.rm=TRUE), 2), legend_y = c(0.6, 1), legend_x = c(1, 1.05), col = viridis(10))
-    }
-  dev.off()
+  # Turn geometry into an sf object
+  grid_sf <- st_sf(geometry = grid)
+  grid_sf <- grid_sf %>% mutate(g = seq_len(nrow(grid_sf)))
+  
+  # Compute log density
+  logD_gt <- log(Dhat_gct[, c_index, , drop = FALSE])[, 1, ]
+  cutoff <- max(logD_gt, na.rm = TRUE) - log(1000)
+  logD_gt[logD_gt < cutoff] <- NA
+  
+  df_long <- as.data.frame(logD_gt) %>%
+    mutate(g = seq_len(nrow(.))) %>%
+    pivot_longer(cols = starts_with("V"),
+                 names_to = "t_index",
+                 values_to = "logD") %>%
+    mutate(t = as.integer(gsub("V", "", t_index)),
+           year = year_set[t])
+  
+  # Join onto sf object and plot
+  plotgrid <- left_join(grid_sf, df_long, by = "g")
+  
+  ggplot(plotgrid) +
+    geom_sf(aes(fill = logD, color = logD)) +
+    scale_fill_viridis(option = "D", na.value = NA) +
+    scale_color_viridis(option = "D", na.value = NA) +
+    facet_wrap(~year) +
+    labs(fill = "density", color = "density") +
+    theme(axis.title = element_blank(),   
+          axis.text = element_blank(),      
+          axis.ticks = element_blank())
+  
+  ggsave(filename = here("output", paste0("Densities_", interval_labels[c_index], ".png")), 
+         width = 7.5, height = 5, units = "in", dpi = 300)
 }
 
-# Spatio-temporal term
-for(c_index in 1:4){
-  png(file = here("output", paste0("eps_", interval_labels[c_index], ".png")), 
-      width = 7.5, height = 6, units = "in", res = 200)
-    par(mfrow=c(3, 4))
-    plotgrid = st_sf(grid, epshat_gct[, c_index, , drop = FALSE], crs = st_crs(grid))
-    for(t in 1:(dim(Dhat_gct)[[3]])) {
-      plot(plotgrid[, t], max.plot = 20, border = NA, key.pos = NULL, reset = FALSE, pal = viridis, main = year_set[t])
-      add_legend(round(range(plotgrid[[t]], na.rm = TRUE), 2), legend_y = c(0.6, 1), legend_x = c(1, 1.05), col = viridis(10))
-    }
-  dev.off()
+# Plot spatio-temporal term by interval ---------------------------------------
+for(c_index in 1:4) {
+  # Convert epshat_gct slice to data frame
+  eps_slice <- epshat_gct[, c_index, , drop = FALSE]
+  
+  # Flatten into data.frame and attach year labels
+  eps_df <- as.data.frame(eps_slice)
+  colnames(eps_df) <- year_set
+  eps_df$id <- 1:nrow(eps_df)
+  
+  # Convert geometry to sf and join eps values
+  plotgrid <- st_sf(geometry = grid, crs = st_crs(grid))
+  plotgrid$id <- 1:nrow(plotgrid)
+  
+  plotgrid_long <- left_join(plotgrid, eps_df, by = "id") %>%
+    pivot_longer(cols = all_of(as.character(year_set)),
+                 names_to = "year",
+                 values_to = "eps")
+  
+  ggplot(plotgrid_long) +
+    geom_sf(aes(fill = eps, color = eps)) +
+    scale_fill_viridis(na.value = NA) +
+    scale_color_viridis(na.value = NA) +
+    facet_wrap(~year) +
+    labs(fill = "eps", color = "eps") +
+    theme(axis.title = element_blank(),   
+          axis.text = element_blank(),      
+          axis.ticks = element_blank())
+  
+  ggsave(filename = here("output", paste0("eps_", interval_labels[c_index], ".png")),
+         width = 7.5, height = 5, units = "in", dpi = 300)
 }
 
-# SNW: not sure the following is indexed correctly w/ 4 layers
+# Density by survey index & proportion ----------------------------------------
 D_bt_gt <- apply(Dhat_gct[, 1:3, ], MARGIN = c(1, 3), FUN = sum)
 D_at_gt <- apply(Dhat_gct[, 2:4, ], MARGIN = c(1, 3), FUN = sum)
-prop_bt_gt <- apply(Dhat_gct[, 1:3, ], MARGIN = c(1, 3), FUN = sum) / apply(Dhat_gct, MARGIN = c(1, 3), FUN = sum)
-prop_at_gt <- apply(Dhat_gct[, 2:4, ], MARGIN = c(1, 3), FUN = sum) / apply(Dhat_gct, MARGIN = c(1, 3), FUN = sum)
+prop_bt_gt <- D_bt_gt / apply(Dhat_gct, MARGIN = c(1, 3), FUN = sum)
+prop_at_gt <- D_at_gt / apply(Dhat_gct, MARGIN = c(1, 3), FUN = sum)
+
 D_gzt <- aperm(abind::abind(D_bt_gt, D_at_gt, prop_bt_gt, prop_at_gt, along = 3), c(1, 3, 2))
+types <- c("BT", "AT", "BTprop", "ATprop")
 
 for(c_index in 1:4) {
-  png(file = here("output", paste0("Densities_", c("BT", "AT", "BTprop", "ATprop")[c_index], ".png")), 
-      width = 7.5, height = 6, units = "in", res = 200)
-    par(mfrow=c(3, 4))
-    if(c_index %in% 1:2){
-      Y_gt <- log(D_gzt[, c_index, , drop = FALSE])
-      Y_gt <- ifelse(Y_gt < max(Y_gt - log(1000)), NA, Y_gt)
-    } else {
-      Y_gt <- D_gzt[, c_index, , drop = FALSE]
-    }
-    plotgrid <- st_sf(grid, Y_gt, crs = st_crs(grid))
-    for(t in 1:(dim(Dhat_gct)[[3]])) {
-      if (c_index %in% c(1,3)) {
-         dat_subset = subset( dat_sf, Year == year_set[t] & dat$Gear == "BT")
-      } else {
-        dat_subset <- subset(dat_sf, Year == year_set[t] & dat$Gear != "BT")
-      }
-      plot(plotgrid[, t], max.plot = 20, border = NA, key.pos = NULL, reset = FALSE, pal = viridis, main = year_set[t])
-      add_legend(round(range(plotgrid[[t]], na.rm = TRUE), 2), legend_y = c(0.6, 1), legend_x = c(1, 1.05), col = viridis(10))
-      plot(st_geometry(dat_subset), add = TRUE, pch = 20, cex = 0.2, col = rgb(0, 0, 0, 0.2))
-    }
-  dev.off()
+  # Extract and optionally log-transform
+  Y_gt <- D_gzt[, c_index, , drop = FALSE]
+  if(c_index %in% 1:2){
+    Y_gt <- log(Y_gt)
+    cutoff <- max(Y_gt, na.rm = TRUE) - log(1000)
+    Y_gt[Y_gt < cutoff] <- NA
+  }
+  
+  # Build sf object with geometry
+  plotgrid <- st_sf(geometry = grid, crs = st_crs(grid))
+  plotgrid$id <- 1:nrow(plotgrid)
+  
+  # Convert Y_gt to data frame and attach year labels
+  Y_df <- as.data.frame(Y_gt)
+  colnames(Y_df) <- year_set
+  Y_df$id <- 1:nrow(Y_df)
+  
+  # Join geometry and pivot to long format
+  plotgrid_long <- left_join(plotgrid, Y_df, by = "id") %>%
+    pivot_longer(cols = all_of(as.character(year_set)),
+                 names_to = "year",
+                 values_to = "value")
+  
+  ggplot() +
+    geom_sf(data = plotgrid_long, aes(fill = value, color = value)) +
+    scale_fill_viridis(na.value = NA) +
+    scale_color_viridis(na.value = NA) +
+    facet_wrap(~year) +
+    theme(axis.title = element_blank(),
+          axis.text = element_blank(),
+          axis.ticks = element_blank()) +
+    labs(fill = types[c_index], color = types[c_index])
+  ggsave(filename = here("output", paste0("Densities_", types[c_index], ".png")), 
+         width = 7.5, height = 5, units = "in", dpi = 300)
 }
 
 # Intercepts and data availability
@@ -363,6 +402,10 @@ cbind(
 )
 
 # Export results and new plots ------------------------------------------------
+indices <- data.frame(Year = year_set,
+                      BT = colSums(index_ct[1:3, ]),
+                      AT = colSums(index_ct[2:4, ])) 
+
 avail_gear <- rbind(
   cbind.data.frame(Year = year_set, 
         Proportion = prop_at, 
@@ -373,7 +416,7 @@ avail_gear <- rbind(
         SD = SD_report$Ptrawl,
         Gear = "BT")) 
 
-write.csv(avail_gear, here("Results", "availability_gear_4layers.csv"))
+write.csv(avail_gear, here("Results", "availability_gear_4layers.csv"), row.names = FALSE)
 
 # Time series of proportion available
 # Get years where there was a survey
@@ -384,7 +427,7 @@ survey_yr_points <- avail_gear %>%
   filter((Gear == "AT" & Year %in% at_years) | 
            (Gear == "BT" & Year %in% bt_years))
 survey_yr_points <- rbind.data.frame(survey_yr_points,
-                                     cbind.data.frame(Year = c(2009, 2010, 2012, 2014:2018),
+                                     cbind.data.frame(Year = unique(dat[Gear == "AVO2", ]$Year),
                                                       Proportion = 0,
                                                       SD = 0,
                                                       Gear = "AVO")) %>%
@@ -414,7 +457,7 @@ avail_depth <- reshape2::melt(avail_depth,
                               value.name = "Proportion") %>%
   dplyr::mutate(Height = factor(Height, levels = c(">16m", "3-16m", "0.5-3m", "<0.5m")))
 
-write.csv(avail_depth, here("Results", "availability_depth_4layers.csv"))
+write.csv(avail_depth, here("Results", "availability_depth_4layers.csv"), row.names = FALSE)
 
 depth_plot <- ggplot(avail_depth) +
   geom_bar(aes(x = Year, y = Proportion, fill = Height), 
