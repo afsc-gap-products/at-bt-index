@@ -278,130 +278,81 @@ prop_ct <- sweep(index_ct, MARGIN = 2, STAT = colSums(index_ct), FUN = "/")
 prop_bt <- colSums(index_ct[1:3, ]) / colSums(index_ct)
 prop_at <- colSums(index_ct[2:4, ]) / colSums(index_ct)
 
-# Plot density by interval ----------------------------------------------------
-interval_labels <- c("0.5", "0.5-3", "3-16", "16")
-
-for(c_index in 1:4) {
-  # Turn geometry into an sf object
-  grid_sf <- st_sf(geometry = grid)
-  grid_sf <- grid_sf %>% mutate(g = seq_len(nrow(grid_sf)))
+# Plot densities & spatiotemporal term ----------------------------------------
+plot_spatial_data <- function(grid, data_array, year_set, interval_labels, output_prefix, log_transform = TRUE) {
+  n_intervals <- dim(data_array)[2]  # [g, c_index, t]
   
-  # Compute log density
-  logD_gt <- log(Dhat_gct[, c_index, , drop = FALSE])[, 1, ]
-  cutoff <- max(logD_gt, na.rm = TRUE) - log(1000)
-  logD_gt[logD_gt < cutoff] <- NA
-  
-  df_long <- as.data.frame(logD_gt) %>%
-    mutate(g = seq_len(nrow(.))) %>%
-    pivot_longer(cols = starts_with("V"),
-                 names_to = "t_index",
-                 values_to = "logD") %>%
-    mutate(t = as.integer(gsub("V", "", t_index)),
-           year = year_set[t])
-  
-  # Join onto sf object and plot
-  plotgrid <- left_join(grid_sf, df_long, by = "g")
-  
-  ggplot(plotgrid) +
-    geom_sf(aes(fill = logD, color = logD)) +
-    scale_fill_viridis(option = "D", na.value = NA) +
-    scale_color_viridis(option = "D", na.value = NA) +
-    facet_wrap(~year) +
-    labs(fill = "density", color = "density") +
-    theme(axis.title = element_blank(),   
-          axis.text = element_blank(),      
-          axis.ticks = element_blank())
-  
-  ggsave(filename = here("output", paste0("Densities_", interval_labels[c_index], ".png")), 
-         width = 7.5, height = 5, units = "in", dpi = 300)
-}
-
-# Plot spatio-temporal term by interval ---------------------------------------
-for(c_index in 1:4) {
-  # Convert epshat_gct slice to data frame
-  eps_slice <- epshat_gct[, c_index, , drop = FALSE]
-  
-  # Flatten into data.frame and attach year labels
-  eps_df <- as.data.frame(eps_slice)
-  colnames(eps_df) <- year_set
-  eps_df$id <- 1:nrow(eps_df)
-  
-  # Convert geometry to sf and join eps values
-  plotgrid <- st_sf(geometry = grid, crs = st_crs(grid))
-  plotgrid$id <- 1:nrow(plotgrid)
-  
-  plotgrid_long <- left_join(plotgrid, eps_df, by = "id") %>%
-    pivot_longer(cols = all_of(as.character(year_set)),
-                 names_to = "year",
-                 values_to = "eps")
-  
-  ggplot(plotgrid_long) +
-    geom_sf(aes(fill = eps, color = eps)) +
-    scale_fill_viridis(na.value = NA) +
-    scale_color_viridis(na.value = NA) +
-    facet_wrap(~year) +
-    labs(fill = "eps", color = "eps") +
-    theme(axis.title = element_blank(),   
-          axis.text = element_blank(),      
-          axis.ticks = element_blank())
-  
-  ggsave(filename = here("output", paste0("eps_", interval_labels[c_index], ".png")),
-         width = 7.5, height = 5, units = "in", dpi = 300)
-}
-
-# Density by survey index & proportion ----------------------------------------
-D_bt_gt <- apply(Dhat_gct[, 1:3, ], MARGIN = c(1, 3), FUN = sum)
-D_at_gt <- apply(Dhat_gct[, 2:4, ], MARGIN = c(1, 3), FUN = sum)
-prop_bt_gt <- D_bt_gt / apply(Dhat_gct, MARGIN = c(1, 3), FUN = sum)
-prop_at_gt <- D_at_gt / apply(Dhat_gct, MARGIN = c(1, 3), FUN = sum)
-
-D_gzt <- aperm(abind::abind(D_bt_gt, D_at_gt, prop_bt_gt, prop_at_gt, along = 3), c(1, 3, 2))
-types <- c("BT", "AT", "BTprop", "ATprop")
-
-for(c_index in 1:4) {
-  # Extract and optionally log-transform
-  Y_gt <- D_gzt[, c_index, , drop = FALSE]
-  if(c_index %in% 1:2){
-    Y_gt <- log(Y_gt)
-    cutoff <- max(Y_gt, na.rm = TRUE) - log(1000)
-    Y_gt[Y_gt < cutoff] <- NA
+  for(c_index in 1:n_intervals) {
+    slice <- data_array[, c_index, , drop = FALSE]
+    
+    # Apply log + cutoff only if needed
+    if(log_transform && c_index %in% 1:2) {
+      slice <- log(slice)
+      cutoff <- max(slice, na.rm = TRUE) - log(1000)
+      slice[slice < cutoff] <- NA
+    }
+    
+    # Convert to long data frame
+    df <- as.data.frame(slice)
+    colnames(df) <- year_set
+    df$id <- 1:nrow(df)
+    
+    plotgrid <- st_sf(geometry = grid, crs = st_crs(grid))
+    plotgrid$id <- 1:nrow(plotgrid)
+    
+    plotgrid_long <- left_join(plotgrid, df, by = "id") %>%
+      pivot_longer(cols = all_of(as.character(year_set)),
+                   names_to = "year",
+                   values_to = "value")
+    
+    ggplot(plotgrid_long) +
+      geom_sf(aes(fill = value, color = value)) +
+      scale_fill_viridis(na.value = NA) +
+      scale_color_viridis(na.value = NA) +
+      facet_wrap(~year) +
+      labs(fill = "value", color = "value") +
+      theme(axis.title = element_blank(),
+            axis.text = element_blank(),
+            axis.ticks = element_blank())
+    
+    # Save
+    ggsave(filename = here("output", paste0(output_prefix, "_", interval_labels[c_index], ".png")),
+           width = 7.5, height = 5, units = "in", dpi = 300)
   }
-  
-  # Build sf object with geometry
-  plotgrid <- st_sf(geometry = grid, crs = st_crs(grid))
-  plotgrid$id <- 1:nrow(plotgrid)
-  
-  # Convert Y_gt to data frame and attach year labels
-  Y_df <- as.data.frame(Y_gt)
-  colnames(Y_df) <- year_set
-  Y_df$id <- 1:nrow(Y_df)
-  
-  # Join geometry and pivot to long format
-  plotgrid_long <- left_join(plotgrid, Y_df, by = "id") %>%
-    pivot_longer(cols = all_of(as.character(year_set)),
-                 names_to = "year",
-                 values_to = "value")
-  
-  ggplot() +
-    geom_sf(data = plotgrid_long, aes(fill = value, color = value)) +
-    scale_fill_viridis(na.value = NA) +
-    scale_color_viridis(na.value = NA) +
-    facet_wrap(~year) +
-    theme(axis.title = element_blank(),
-          axis.text = element_blank(),
-          axis.ticks = element_blank()) +
-    labs(fill = types[c_index], color = types[c_index])
-  ggsave(filename = here("output", paste0("Densities_", types[c_index], ".png")), 
-         width = 7.5, height = 5, units = "in", dpi = 300)
 }
 
+# Log density plot
+plot_spatial_data(grid, Dhat_gct, year_set, interval_labels, "Densities", log_transform = TRUE)
+
+# Spatio-temporal term (eps) plots
+plot_spatial_data(grid, epshat_gct, year_set, interval_labels, "eps", log_transform = FALSE)
+
+# Density/proportion by survey plots
+# Compute sums and proportions
+D_bt_gt <- apply(Dhat_gct[, 1:3, ], c(1,3), sum)        # BT
+D_at_gt <- apply(Dhat_gct[, 2:4, ], c(1,3), sum)        # AT
+prop_bt_gt <- D_bt_gt / apply(Dhat_gct, c(1,3), sum)    # BT proportion
+prop_at_gt <- D_at_gt / apply(Dhat_gct, c(1,3), sum)    # AT proportion
+
+# Combine into one array [g, c_index, t]
+D_gzt <- array(NA, dim = c(nrow(D_bt_gt), 4, ncol(D_bt_gt)))
+D_gzt[, 1, ] <- D_bt_gt
+D_gzt[, 2, ] <- D_at_gt
+D_gzt[, 3, ] <- prop_bt_gt
+D_gzt[, 4, ] <- prop_at_gt
+
+types <- c("BT", "AT", "BTprop", "ATprop")  # labels
+
+# Call the function (ppply log-transform only to the first two intervals (BT and AT))
+plot_spatial_data(grid, D_gzt, year_set, types, output_prefix = "Densities", log_transform = TRUE)
+
+# Export results and new plots ------------------------------------------------
 # Intercepts and data availability
 cbind( 
   t(parlist$beta_ct),
   tapply(dat$Abundance, INDEX = list(factor(dat$Year, levels = year_set), dat$Gear), FUN = length)
 )
 
-# Export results and new plots ------------------------------------------------
 indices <- data.frame(Year = year_set,
                       BT = colSums(index_ct[1:3, ]),
                       AT = colSums(index_ct[2:4, ])) 
