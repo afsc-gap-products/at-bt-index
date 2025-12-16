@@ -20,9 +20,12 @@ theme_set(theme_sleek())
 world <- ne_countries(scale = "medium", returnclass = "sf")
 sf_use_s2(FALSE)  # turn off spherical geometry
 
+year <- format(Sys.Date(), "%Y")
+
 # Combine data ----------------------------------------------------------------
 dat <- read.csv(here("data", "data_real.csv"))[, -9]
-avo_processed <- read.csv(here("data", "avo", "avo_processed.csv"))
+avo_processed <- read.csv(here("data", year, "avo_processed.csv")) %>%
+  filter(year <= 2018)  # filter years until we have processed AT data after 2018
 dat_avo <- cbind.data.frame(Lat = avo_processed$latitude,
                             Lon = avo_processed$longitude,
                             Year = avo_processed$year,
