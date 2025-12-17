@@ -111,40 +111,18 @@ AVO3_prop <- avo_processed %>%
   mutate(proportion = sA / total_sA) %>%
   filter(!is.na(proportion)) 
 
-# Map of AVO
-# avo_map <- ggplot(data = world) +
-#   geom_sf() +
-#   geom_tile(data = avo_processed,
-#             aes(x = longitude, y = latitude, fill = sA),
-#             width = 0.55, height = 0.3) +
-#   coord_sf(xlim = c(-179, -157), ylim = c(53.8, 63.5), expand = FALSE) +
-#   scale_fill_viridis(option = "mako", direction = -1) +
-#   theme(axis.title.x=element_blank(),
-#         axis.text.x=element_blank(),
-#         axis.ticks.x=element_blank()) +
-#   theme(axis.title.y=element_blank(),
-#         axis.text.y=element_blank(),
-#         axis.ticks.y=element_blank()) +
-#   labs(x = NULL, y = NULL) +
-#   facet_grid(gear ~ year) +
-#   theme(legend.position = "bottom") 
-# avo_map
+# Convert AVO points to sf
+avo_sf <- st_as_sf(bind_rows(AVO2_prop, AVO3_prop), coords = c("lon", "lat"), crs = 4326)
 
-avo_prop <- ggplot(data = world) +
-  geom_sf() +
-  geom_tile(data = rbind.data.frame(AVO2_prop, AVO3_prop), 
-            aes(x = longitude, y = latitude, fill = proportion),
-            width = 0.55, height = 0.3) +
+avo_prop <- ggplot(avo_sf) +
+  geom_sf(data = world) +
+  geom_sf(data = avo_sf, aes(color = proportion), shape = "square") +
+  scale_color_viridis(na.value = NA, option = "mako") +
   coord_sf(xlim = c(-179, -157), ylim = c(53.8, 63.5), expand = FALSE) +
-  scale_fill_viridis(option = "mako", direction = -1) +
-  theme(axis.title.x=element_blank(),
-        axis.text.x=element_blank(),
-        axis.ticks.x=element_blank()) +
-  theme(axis.title.y=element_blank(),
-        axis.text.y=element_blank(),
-        axis.ticks.y=element_blank()) +
-  labs(x = NULL, y = NULL) +
   facet_grid(gear ~ year) +
+  theme(axis.title = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank()) +
   theme(legend.position = "bottom") 
 avo_prop
 
