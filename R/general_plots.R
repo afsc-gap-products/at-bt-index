@@ -34,7 +34,7 @@ survey_years <- bind_rows(
                                             "Acoustic vessels of opportunity (AVO)"))) %>%
   ggplot(.) +
   geom_point(aes(x = year, y = occurred, color = survey)) +
-  scale_color_viridis(discrete = TRUE, begin = 0.3) +
+  scale_color_manual(values = c("#414081", "#2FB47C", "#FDE725")) +
   facet_wrap(~survey, ncol = 1) +
   theme(legend.position = "none",
         axis.text.y  = element_blank(),
@@ -103,7 +103,7 @@ survey_locations <- ggplot(data = world) +
   geom_point(data = all_dat, 
              aes(x = Lon, y = Lat, color = Gear)) +
   coord_sf(xlim = c(-179, -157), ylim = c(53.8, 63.5), expand = FALSE) +
-  scale_color_viridis(discrete = TRUE, begin = 0.3) +
+  scale_color_manual(values = c("#414081", "#2FB47C", "#FDE725")) +
   theme(axis.title = element_blank(),
         axis.text = element_blank(),
         axis.ticks = element_blank(),
@@ -118,7 +118,7 @@ ggsave(survey_locations, filename = here(dir, "survey_locations.png"),
 # Model results ---------------------------------------------------------------
 avail_depth <- read.csv(here("Results", "availability_depth_4layers.csv")) %>%
   filter(Year <= 2018) %>%
-  mutate(Height = factor(Height, levels = c("<0.5m", "0.5-3m", "3-16m", ">16m")))
+  mutate(Height = factor(Height, levels = c(">16m", "3-16m", "0.5-3m", "<0.5m")))
 avail_gear <- read.csv(here("Results", "availability_gear_4layers.csv")) %>%
   mutate(Gear = factor(Gear, levels = c("BT", "AT"))) %>%
   filter(Year <= 2018)
@@ -146,7 +146,7 @@ gear_plot <- ggplot() +
   geom_ribbon(data = avail_gear, 
               aes(x = Year, ymin = (Proportion - 2 * SD), ymax = (Proportion + 2 * SD), fill = Gear), alpha = 0.4) +
   scale_color_viridis(discrete = TRUE, begin = 0.3) +
-  scale_fill_manual(values = c("#35608D", "#2FB47C"))
+  scale_fill_manual(values = c("#414081", "#2FB47C"))
 gear_plot
 
 ggsave(gear_plot, filename = here(dir, "avail_gear_plot_avo.png"),
