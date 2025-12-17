@@ -17,6 +17,8 @@ library(rnaturalearth)
 source("~/GAP/gap-random/sleek_dark.R")
 theme_set(theme_sleek_transparent())
 
+dir <- here("Results", "wkuser")
+
 # Pollock survey overview -----------------------------------------------------
 survey_years <- bind_rows(
   data.frame(survey = rep("EBS bottom trawl (BT)"), 
@@ -40,7 +42,7 @@ survey_years <- bind_rows(
   ylab(" ") + xlab("")
 survey_years
 
-ggsave(survey_years, filename = here("Results", "survey_years.png"),
+ggsave(survey_years, filename = here(dir, "survey_years.png"),
        width = 6, height = 3, units = "in", dpi = 300, bg = "transparent")
 
 # Pollock depth (AVO) ---------------------------------------------------------
@@ -76,7 +78,7 @@ avo_depth <- ggplot(avo_sf) +
   labs(color = "Backscatter-weighted depth")
 avo_depth
 
-ggsave(avo_depth, filename = here("Results", "avo_weighted_depth.png"),
+ggsave(avo_depth, filename = here(dir, "avo_weighted_depth.png"),
        width = 8, height = 3.5, units = "in", dpi = 300, bg = "transparent")
 
 # Survey location overlap -----------------------------------------------------
@@ -110,5 +112,59 @@ survey_locations <- ggplot(data = world) +
   facet_wrap(~ Gear)
 survey_locations
 
-ggsave(survey_locations, filename = here("Results", "survey_locations.png"),
+ggsave(survey_locations, filename = here(dir, "survey_locations.png"),
        width = 7, height = 3, units = "in", dpi = 300, bg = "transparent")
+
+# Model results ---------------------------------------------------------------
+avail_depth <- read.csv(here("Results", "availability_depth_4layers.csv")) %>%
+  filter(Year <= 2018) %>%
+  mutate(Height = factor(Height, levels = c("<0.5m", "0.5-3m", "3-16m", ">16m")))
+avail_gear <- read.csv(here("Results", "availability_gear_4layers.csv")) %>%
+  mutate(Gear = factor(Gear, levels = c("BT", "AT"))) %>%
+  filter(Year <= 2018)
+
+# Time series of proportion available
+# Get years where there was a survey
+at_years <- c(2007:2010, 2012, 2014, 2016, 2018)
+bt_years <- 2007:2018
+
+survey_yr_points <- avail_gear %>% 
+  filter((Gear == "AT" & Year %in% at_years) | 
+           (Gear == "BT" & Year %in% bt_years))
+survey_yr_points <- rbind.data.frame(survey_yr_points,
+                                     cbind.data.frame(Year = c(2009, 2010, 2012, 2014, 2015, 2016, 2017, 2018),
+                                                      Proportion = 0,
+                                                      SD = 0,
+                                                      Gear = "AVO")) %>%
+  mutate(Gear = factor(Gear, levels = c("BT", "AT", "AVO")))
+
+gear_plot <- ggplot() +
+  geom_line(data = avail_gear, 
+            aes(x = Year, y = Proportion, color = Gear)) +
+  geom_point(data = survey_yr_points,
+             aes(x = Year, y = Proportion, color = Gear, shape = Gear)) +
+  geom_ribbon(data = avail_gear, 
+              aes(x = Year, ymin = (Proportion - 2 * SD), ymax = (Proportion + 2 * SD), fill = Gear), alpha = 0.4) +
+  scale_color_viridis(discrete = TRUE, begin = 0.3) +
+  scale_fill_manual(values = c("#35608D", "#2FB47C"))
+gear_plot
+
+ggsave(gear_plot, filename = here(dir, "avail_gear_plot_avo.png"),
+       width = 150, height = 90, units = "mm", dpi = 300)
+
+# Bar plot of availability by depth
+depth_plot <- ggplot(avail_depth) +
+  geom_bar(aes(x = Year, y = Proportion, fill = Height), 
+           position = "fill", stat = "identity") +
+  scale_fill_viridis(option = "mako", discrete = TRUE, direction = -1, begin = 0.3)
+depth_plot
+
+ggsave(depth_plot, filename = here(dir, "avail_depth_plot_avo.png"),
+       width = 150, height = 90, units = "mm", dpi = 300)
+
+# Both plots together
+avail_both <- cowplot::plot_grid(depth_plot, gear_plot, ncol = 1)
+avail_both
+
+ggsave(avail_both, filename = here(dir, "avail_both_avo.png"),
+       width = 150, height = 150, units = "mm", dpi = 300)
