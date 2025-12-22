@@ -115,7 +115,55 @@ survey_locations
 ggsave(survey_locations, filename = here(dir, "survey_locations.png"),
        width = 7, height = 3, units = "in", dpi = 300, bg = "transparent")
 
-# Model results ---------------------------------------------------------------
+# Original model results ------------------------------------------------------
+avail_depth <- read.csv(here("Results", "availability_depth_noAVO.csv"))[, -1] %>%
+  mutate(Height = factor(Height, levels = c(">16m", "0.5-16m", "<0.5m")))
+avail_gear <- read.csv(here("Results", "availability_gear_noAVO.csv"))[, -1] %>%
+  mutate(Gear = factor(Gear, levels = c("BT", "AT"))) 
+
+at_years <- c(2007:2010, 2012, 2014, 2016, 2018)
+bt_years <- 2007:2018
+
+survey_yr_points <- avail_gear %>% 
+  filter((Gear == "AT" & Year %in% at_years) | 
+           (Gear == "BT" & Year %in% bt_years)) %>%
+  mutate(Gear = factor(Gear, levels = c("BT", "AT")))
+
+gear_plot <- ggplot() +
+  geom_line(data = avail_gear, 
+            aes(x = Year, y = Proportion, color = Gear)) +
+  geom_point(data = survey_yr_points,
+             aes(x = Year, y = Proportion, color = Gear, shape = Gear)) +
+  geom_ribbon(data = avail_gear, 
+              aes(x = Year, ymin = (Proportion - 2 * SD), ymax = (Proportion + 2 * SD), fill = Gear), alpha = 0.4) +
+  scale_color_manual(values = c("#414081", "#2FB47C")) +
+  scale_fill_manual(values = c("#414081", "#2FB47C")) +
+  ylim(0, NA) +
+  xlab("")
+gear_plot
+
+ggsave(gear_plot, filename = here(dir, "avail_gear_plot_original.png"),
+       width = 150, height = 90, units = "mm", dpi = 300)
+
+# Bar plot of availability by depth
+depth_plot <- ggplot(avail_depth) +
+  geom_bar(aes(x = Year, y = Proportion, fill = Height), 
+           position = "fill", stat = "identity") +
+  scale_fill_viridis(option = "mako", discrete = TRUE, direction = -1, begin = 0.3) +
+  xlab("")
+depth_plot
+
+ggsave(depth_plot, filename = here(dir, "avail_depth_plot_original.png"),
+       width = 150, height = 90, units = "mm", dpi = 300)
+
+# Both plots together
+avail_both <- cowplot::plot_grid(depth_plot, gear_plot, ncol = 1)
+avail_both
+
+ggsave(avail_both, filename = here(dir, "avail_both_original.png"),
+       width = 150, height = 150, units = "mm", dpi = 300)
+
+# Model results with AVO & 4 layers -------------------------------------------
 avail_depth <- read.csv(here("Results", "availability_depth_4layers.csv")) %>%
   filter(Year <= 2018) %>%
   mutate(Height = factor(Height, levels = c(">16m", "3-16m", "0.5-3m", "<0.5m")))
@@ -145,8 +193,9 @@ gear_plot <- ggplot() +
              aes(x = Year, y = Proportion, color = Gear, shape = Gear)) +
   geom_ribbon(data = avail_gear, 
               aes(x = Year, ymin = (Proportion - 2 * SD), ymax = (Proportion + 2 * SD), fill = Gear), alpha = 0.4) +
-  scale_color_viridis(discrete = TRUE, begin = 0.3) +
-  scale_fill_manual(values = c("#414081", "#2FB47C"))
+  scale_color_manual(values = c("#414081", "#2FB47C", "#FDE725")) +
+  scale_fill_manual(values = c("#414081", "#2FB47C")) +
+  xlab("")
 gear_plot
 
 ggsave(gear_plot, filename = here(dir, "avail_gear_plot_avo.png"),
@@ -156,7 +205,8 @@ ggsave(gear_plot, filename = here(dir, "avail_gear_plot_avo.png"),
 depth_plot <- ggplot(avail_depth) +
   geom_bar(aes(x = Year, y = Proportion, fill = Height), 
            position = "fill", stat = "identity") +
-  scale_fill_viridis(option = "mako", discrete = TRUE, direction = -1, begin = 0.3)
+  scale_fill_viridis(option = "mako", discrete = TRUE, direction = -1, begin = 0.3) +
+  xlab("")
 depth_plot
 
 ggsave(depth_plot, filename = here(dir, "avail_depth_plot_avo.png"),
