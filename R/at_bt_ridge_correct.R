@@ -77,9 +77,9 @@ A_gs <- fm_evaluator(mesh, loc = as.matrix(extrap[, c("Lon", "Lat")]))$proj$A
 area_g <- extrap[,"Area_in_survey_km2"]
 
 # Extract
-M0 <- spde$c0
-M1 <- spde$g1
-M2 <- spde$g2
+M0 <- spde$c0  # mass matrix
+M1 <- spde$g1  # gradient matrix (first derivative)
+M2 <- spde$g2  # stiffness matrix (second derivative / Laplacian)
 
 parlist <- list(
   mu_c = rep(0, 4),
@@ -266,7 +266,7 @@ sdrep <- sdreport(obj,
                   par.fixed = opt$par,
                   hessian.fixed = Hess, 
                   bias.correct = FALSE,
-                  getReportCovariance = FALSE)
+                  getReportCovariance = TRUE)
 rep <- obj$report()
 
 # Extract index and proportion ------------------------------------------------
