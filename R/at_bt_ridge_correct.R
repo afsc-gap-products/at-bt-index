@@ -46,17 +46,23 @@ dat <- read.csv(here("data", year, "dat_all.csv")) %>%
 dat_sf <- st_as_sf(dat, coords = c("Lon", "Lat"))
 year_set <- min(dat$Year):max(dat$Year)
 
-# Get extrapolation grid from akgfmaps package
+# Get EBS area from akgfmaps
 ebs <- akgfmaps::get_base_layers(select.region = "sebs")$survey.area
 ebs <- st_geometry(ebs)
-ebs <- st_transform(ebs, crs = st_crs("EPSG:4326"))
-grid <- st_make_grid(ebs, cellsize = c(0.25,0.25))
+ebs <- st_transform(ebs, 4326)  # keep in lon/lat for grid creation
+
+grid <- st_make_grid(ebs, cellsize = 0.25)
 grid <- st_intersection(grid, ebs)
 grid <- st_make_valid(grid)
-extrap <- st_coordinates(st_centroid(grid))  # Warning: st_centroid does not give correct centroids for longitude/latitude data
-extrap <- cbind("Lon" = extrap[, 1], 
-                "Lat" = extrap[, 2],
-                "Area_in_survey_km2" = units::drop_units(st_area(grid)) / 1e6)
+
+grid_proj <- st_transform(grid, 3338)  # Reproject grid for accurate centroids
+centroids <- st_centroid(grid_proj)
+
+centroids <- st_transform(centroids, 4326) # Transform centroids back to lon/lat
+extrap <- st_coordinates(centroids)
+extrap <- cbind(Lon = extrap[, 1], 
+                Lat = extrap[, 2],
+                Area_in_survey_km2 = units::drop_units(st_area(grid)) / 1e6)
 
 # Unpack data
 b_i <- dat$Abundance
