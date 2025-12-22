@@ -34,7 +34,8 @@ theme_set(theme_sleek())
 
 # Read in data and set up model inputs ----------------------------------------
 year <- format(Sys.Date(), "%Y")
-dat <- read.csv(here("data", year, "dat_all.csv"))
+dat <- read.csv(here("data", year, "dat_all.csv")) %>%
+  filter(Year <= 2018)
 
 # # Thin AVO3 samples
 # which_AVO3 <- which(dat$Gear == "AVO3")
