@@ -298,16 +298,23 @@ pair_df <- data.frame(
   depth4 = eps_by_depth[[4]]
 )
 
+# Code up color by survey data availability
+year_key <- rep(year_set, each = 382)
+year_key <- case_when(year_key %in% c(2007, 2008, 2011, 2013) ~ "no AVO",
+                      year_key %in% c(2011, 2013, 2015, 2017) ~ "no AT",
+                      TRUE ~ "all surveys")
+
+# Plot pairwise by depth category
 pairwise <- function(var1, var2, label1, label2) {
-  df <- cbind.data.frame(var1 = var1, var2 = var2, year = factor(as.character(rep(year_set, each = 382))))
+  df <- cbind.data.frame(var1 = var1, var2 = var2, surveys = year_key)
   range_limits <- range(c(df[, 1], df[, 2]))
   
-  pair_plot <- ggplot(df, aes(x = var1, y = var2, color = year)) +
+  pair_plot <- ggplot(df, aes(x = var1, y = var2, color = surveys)) +
     geom_point(alpha = 0.3) +
     geom_abline(intercept = 0, slope = 1, linetype = "dashed") +
     coord_fixed(xlim = range_limits, ylim = range_limits) +
-    scale_color_viridis(discrete = TRUE, option = "turbo", begin = 0.1) +
-    xlab(label1) + ylab(label2)
+    scale_color_viridis(discrete = TRUE, begin = 0.3) +
+    xlab(label1) + ylab(label2) + labs(color = NULL)
   
   return(pair_plot)
 }
@@ -322,14 +329,13 @@ plot_list <- list()
 # Loop over each pair
 for(i in seq_along(pairs)) {
   pair <- pairs[[i]]
-  lab  <- labs[[i]]   # Only take the label corresponding to this pair
+  lab  <- labs[[i]]  # plot labels
   
   cat1 <- pair_df[, pair[1]]
   cat2 <- pair_df[, pair[2]]
   
   p <- pairwise(cat1, cat2, lab[1], lab[2])
   
-  # Append to list
   plot_list[[length(plot_list) + 1]] <- p
 }
 
