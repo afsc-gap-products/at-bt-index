@@ -272,6 +272,7 @@ rep <- obj$report()
 # Extract index and proportion ------------------------------------------------
 # Extract index
 SD_report <- as.list(sdrep, report = TRUE, what = "Std. Error")
+cov <- as.list(sdrep, report = TRUE, what = "")
 index_ct <- as.list(biascor, report = TRUE, what = "Est. (bias.correct)")$index_ct
 index_se_ct <- SD_report$index_ct
 #index_ct = rep$index_ct
@@ -410,7 +411,7 @@ types <- c("BT", "AT", "BTprop", "ATprop")  # labels
 # Call the function (ppply log-transform only to the first two intervals (BT and AT))
 plot_spatial_data(grid, D_gzt, year_set, types, output_prefix = "Densities", log_transform = TRUE)
 
-# Export results and new plots ------------------------------------------------
+# Time series of proportion available by survey -------------------------------
 # Intercepts and data availability
 cbind( 
   t(parlist$beta_ct),
@@ -423,17 +424,16 @@ indices <- data.frame(Year = year_set,
 
 avail_gear <- rbind(
   cbind.data.frame(Year = year_set, 
-        Proportion = prop_at, 
-        SD = SD_report$Paccoustic,
-        Gear = "AT"),
+                   Proportion = prop_at, 
+                   SD = SD_report$Paccoustic,
+                   Gear = "AT"),
   cbind.data.frame(Year = year_set, 
-        Proportion = prop_bt, 
-        SD = SD_report$Ptrawl,
-        Gear = "BT")) 
+                   Proportion = prop_bt, 
+                   SD = SD_report$Ptrawl,
+                   Gear = "BT")) 
 
 write.csv(avail_gear, here("Results", "availability_gear_4layers.csv"), row.names = FALSE)
 
-# Time series of proportion available
 # Get years where there was a survey
 at_years <- c(2007:2010, 2012, 2014, 2016, 2018)
 bt_years <- unique(dat[Gear == "BT", ]$Year)
@@ -462,7 +462,7 @@ gear_plot
 ggsave(gear_plot, filename = here("Results", "avail_gear_plot_4layers.png"),
        width = 150, height = 90, units = "mm", dpi = 300)
 
-# Bar plot of availability by depth
+# Bar plot of proportion available by depth -----------------------------------
 avail_depth <- data.frame(t(prop_ct))
 colnames(avail_depth) <- c("<0.5m", "0.5-3m", "3-16m", ">16m")
 avail_depth$Year <- year_set
@@ -483,6 +483,41 @@ depth_plot
 ggsave(depth_plot, filename = here("Results", "avail_depth_plot_4layers.png"),
        width = 150, height = 90, units = "mm", dpi = 300)
 
+
+# Index by depth (with SE) ----------------------------------------------------
+# Get index values by depth interval
+ind_depth <- data.frame(Year = year_set,
+                        depth1 = t(index_ct)[,1],
+                        depth2 = t(index_ct)[,2],
+                        depth3 = t(index_ct)[,3],
+                        depth4 = t(index_ct)[,4]) %>%
+  melt(id.vars = "Year", variable.name = "Height", value.name = "Estimate") %>%
+  # Get index SD by depth interval
+  bind_cols(SD = melt(data.frame(Year = year_set, 
+                                 t(index_se_ct)), 
+                      id.vars = "Year", value.name = "SD")$SD) %>%
+  mutate(Height = factor(Height, 
+                         levels = c("depth1", "depth2", "depth3", "depth4"), 
+                         labels = c(">16m", "3-16m", "0.5-3m", "<0.5m"))) %>%
+  mutate(Estimate = Estimate / 1000000000,
+         SD = SD / 1000000000)
+
+ind_depth_plot <- ggplot() +
+  geom_line(data = ind_depth, 
+            aes(x = Year, y = Estimate, color = Height)) +
+  # geom_point(data = survey_yr_points,
+  #            aes(x = Year, y = Proportion, color = Gear, shape = Gear)) +
+  geom_ribbon(data = ind_depth, 
+              aes(x = Year, ymin = (Estimate - 2 * SD), ymax = (Estimate + 2 * SD), fill = Height), alpha = 0.4) +
+  scale_color_viridis(option = "mako", discrete = TRUE, direction = -1, begin = 0.1, end = 0.9) +
+  scale_fill_viridis(option = "mako", discrete = TRUE, direction = -1, begin = 0.1, end = 0.9) +
+  ylab("Index of Abundance (Mt)") + xlab("")
+ind_depth_plot
+
+ggsave(ind_depth_plot, filename = here("Results", "index_depth_plot_4layers.png"),
+       width = 150, height = 90, units = "mm", dpi = 300)
+
+# Combine together ------------------------------------------------------------
 # Both plots together
 avail_both <- cowplot::plot_grid(depth_plot, gear_plot, ncol = 1)
 avail_both
