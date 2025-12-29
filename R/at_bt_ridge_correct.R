@@ -32,6 +32,8 @@ if (!requireNamespace("ggsidekick", quietly = TRUE)) {
 library(ggsidekick)
 theme_set(theme_sleek())
 
+results_dir <- here("Results", "4 layers")
+
 # Read in data and set up model inputs ----------------------------------------
 year <- format(Sys.Date(), "%Y")
 dat <- read.csv(here("data", year, "dat_all.csv")) %>%
@@ -381,7 +383,7 @@ plot_spatial_data <- function(grid, data_array, year_set, interval_labels, outpu
             axis.ticks = element_blank())
     
     # Save
-    ggsave(filename = here("output", paste0(output_prefix, "_", interval_labels[c_index], ".png")),
+    ggsave(filename = here(results_dir, paste0(output_prefix, "_", interval_labels[c_index], ".png")),
            width = 7.5, height = 5, units = "in", dpi = 300)
   }
 }
@@ -432,7 +434,7 @@ avail_gear <- rbind(
                    SD = SD_report$Ptrawl,
                    Gear = "BT")) 
 
-write.csv(avail_gear, here("Results", "availability_gear_4layers.csv"), row.names = FALSE)
+write.csv(avail_gear, here(results_dir, "availability_gear.csv"), row.names = FALSE)
 
 # Get years where there was a survey
 at_years <- c(2007:2010, 2012, 2014, 2016, 2018)
@@ -459,7 +461,7 @@ gear_plot <- ggplot() +
   scale_fill_manual(values = c("#93329E", "#A4C400", "black"))
 gear_plot
 
-ggsave(gear_plot, filename = here("Results", "avail_gear_plot_4layers.png"),
+ggsave(gear_plot, filename = here(results_dir, "avail_gear_plot.png"),
        width = 150, height = 90, units = "mm", dpi = 300)
 
 # Bar plot of proportion available by depth -----------------------------------
@@ -472,7 +474,7 @@ avail_depth <- reshape2::melt(avail_depth,
                               value.name = "Proportion") %>%
   dplyr::mutate(Height = factor(Height, levels = c(">16m", "3-16m", "0.5-3m", "<0.5m")))
 
-write.csv(avail_depth, here("Results", "availability_depth_4layers.csv"), row.names = FALSE)
+write.csv(avail_depth, here(results_dir, "availability_depth.csv"), row.names = FALSE)
 
 depth_plot <- ggplot(avail_depth) +
   geom_bar(aes(x = Year, y = Proportion, fill = Height), 
@@ -480,7 +482,7 @@ depth_plot <- ggplot(avail_depth) +
   scale_fill_viridis(option = "mako", discrete = TRUE, direction = -1, begin = 0.1, end = 0.9)
 depth_plot
 
-ggsave(depth_plot, filename = here("Results", "avail_depth_plot_4layers.png"),
+ggsave(depth_plot, filename = here(results_dir, "avail_depth_plot.png"),
        width = 150, height = 90, units = "mm", dpi = 300)
 
 
@@ -514,7 +516,7 @@ ind_depth_plot <- ggplot() +
   ylab("Index of Abundance (Mt)") + xlab("")
 ind_depth_plot
 
-ggsave(ind_depth_plot, filename = here("Results", "index_depth_plot_4layers.png"),
+ggsave(ind_depth_plot, filename = here(results_dir, "index_depth_plot.png"),
        width = 150, height = 90, units = "mm", dpi = 300)
 
 # Combine together ------------------------------------------------------------
@@ -522,5 +524,5 @@ ggsave(ind_depth_plot, filename = here("Results", "index_depth_plot_4layers.png"
 avail_both <- cowplot::plot_grid(depth_plot, gear_plot, ncol = 1)
 avail_both
 
-ggsave(avail_both, filename = here("Results", "avail_both_4layers.png"),
+ggsave(avail_both, filename = here(results_dir, "avail_both.png"),
        width = 150, height = 150, units = "mm", dpi = 300)
