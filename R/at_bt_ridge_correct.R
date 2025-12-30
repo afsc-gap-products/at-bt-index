@@ -306,7 +306,7 @@ pair_df <- data.frame(
 )
 
 # Code up color by survey data availability
-year_key <- rep(year_set, each = 382)
+year_key <- rep(year_set, each = dim(eps_array))
 year_key <- case_when(year_key %in% c(2007, 2008, 2011, 2013) ~ "no AVO",
                       year_key %in% c(2011, 2013, 2015, 2017) ~ "no AT",
                       TRUE ~ "all surveys")
@@ -348,6 +348,8 @@ for(i in seq_along(pairs)) {
 
 combined_plot <- cowplot::plot_grid(plotlist = plot_list, ncol = 2)
 combined_plot
+ggsave(combined_plot, file = here(results_dir, "pairwise_effects.png"),  
+       width = 150, height = 150, units = "mm", dpi = 300, bg = "white")
 
 # Plot densities & spatiotemporal term ----------------------------------------
 plot_spatial_data <- function(grid, data_array, year_set, interval_labels, output_prefix, log_transform = TRUE) {
