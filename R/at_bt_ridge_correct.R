@@ -33,6 +33,9 @@ library(ggsidekick)
 theme_set(theme_sleek())
 
 results_dir <- here("Results", "4 layers")
+if (!dir.exists(results_dir)) {
+  dir.create(results_dir, recursive = TRUE)
+}
 
 # Read in data and set up model inputs ----------------------------------------
 year <- format(Sys.Date(), "%Y")
