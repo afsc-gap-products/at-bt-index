@@ -39,7 +39,7 @@ if (!requireNamespace("ggsidekick", quietly = TRUE)) {
 library(ggsidekick)
 theme_set(theme_sleek())
 
-results_dir <- here("Results", "no AVO 3-16")
+results_dir <- here("Results", "no AVO 16")
 if (!dir.exists(results_dir)) {
   dir.create(results_dir, recursive = TRUE)
 }
@@ -48,7 +48,7 @@ if (!dir.exists(results_dir)) {
 year <- format(Sys.Date(), "%Y")
 dat <- read.csv(here("data", year, "dat_all.csv")) %>%
   filter(Year <= 2018) %>%
-  filter(Gear != "AVO2")
+  filter(Gear != "AVO3")
 
 # # Thin AVO3 samples
 # which_AVO3 <- which(dat$Gear == "AVO3")
@@ -138,8 +138,8 @@ jnll_spde <- function(parlist, what = "jnll") {
     if(Gear[i] == "AT2") yhat <- exp(sum(A_is[i, ] * epsilon_sct[, 3, t_i[i]]) + beta_ct[3, t_i[i]] + mu_c[3] + omega_ic[i, 3]) 
     if(Gear[i] == "AT3") yhat <- exp(sum(A_is[i, ] * epsilon_sct[, 4,t_i[i]]) + beta_ct[4, t_i[i]] + mu_c[4] + omega_ic[i, 4])
     # AVO only available for 3-16 and >16
-    # if(Gear[i] == "AVO2") yhat <- exp(sum(A_is[i, ] * epsilon_sct[, 3, t_i[i]]) + beta_ct[3, t_i[i]] + mu_c[3] + omega_ic[i, 3] + log_catchability)
-    if(Gear[i] == "AVO3") yhat <- exp(sum(A_is[i, ] * epsilon_sct[, 4, t_i[i]]) + beta_ct[4, t_i[i]] + mu_c[4] + omega_ic[i, 4] + log_catchability)
+    if(Gear[i] == "AVO2") yhat <- exp(sum(A_is[i, ] * epsilon_sct[, 3, t_i[i]]) + beta_ct[3, t_i[i]] + mu_c[3] + omega_ic[i, 3] + log_catchability)
+    # if(Gear[i] == "AVO3") yhat <- exp(sum(A_is[i, ] * epsilon_sct[, 4, t_i[i]]) + beta_ct[4, t_i[i]] + mu_c[4] + omega_ic[i, 4] + log_catchability)
     nll_data <- nll_data - RTMB:::Term(dtweedie(x = b_i[i], 
                                                 mu = yhat, 
                                                 phi = phi,
@@ -457,7 +457,7 @@ survey_yr_points <- avail_gear %>%
   filter((Gear == "AT" & Year %in% at_years) | 
            (Gear == "BT" & Year %in% bt_years))
 survey_yr_points <- rbind.data.frame(survey_yr_points,
-                                     cbind.data.frame(Year = unique(dat[Gear == "AVO3", ]$Year),
+                                     cbind.data.frame(Year = unique(dat[Gear == "AVO2", ]$Year),
                                                       Proportion = 0,
                                                       SD = 0,
                                                       Gear = "AVO")) %>%
