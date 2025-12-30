@@ -32,7 +32,10 @@ if (!requireNamespace("ggsidekick", quietly = TRUE)) {
 library(ggsidekick)
 theme_set(theme_sleek())
 
-results_dir <- here("Results", "4 layers")
+results_dir <- here("Results", "no AVO 3-16")
+if (!dir.exists(results_dir)) {
+  dir.create(results_dir, recursive = TRUE)
+}
 
 # Read in data and set up model inputs ----------------------------------------
 year <- format(Sys.Date(), "%Y")
