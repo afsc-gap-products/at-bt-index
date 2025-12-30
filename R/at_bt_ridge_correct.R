@@ -7,6 +7,13 @@
 #' model was moved to RTMB, which allowed a ridge correction approach to be 
 #' implemented.
 #' 
+#' At the moment, the model is indexed by depth intervals (<0.5m, 0.5-3m, 3-16m,
+#' and >16m from the bottom) and returns the biomass (and SE) available for the 
+#' two main surveys: bottom trawl and acoustic trawl, depending on the depth 
+#' intervals sampled by those surveys, by combining the calculated index for a
+#' subset of depth layers. The backscatter from the AVO survey is included in 
+#' the model, but no biomass associated with AVO availability. 
+#' 
 #' Code updated and maintained by Sophia Wassermann
 
 library(RTMB)
@@ -394,9 +401,9 @@ plot_spatial_data <- function(grid, data_array, year_set, interval_labels, outpu
   }
 }
 
+interval_labels = c("0.5", "0.5-3", "3-16", "16")
 # Log density plot
 plot_spatial_data(grid, Dhat_gct, year_set, interval_labels, "Densities", log_transform = TRUE)
-
 # Spatio-temporal term (eps) plots
 plot_spatial_data(grid, epshat_gct, year_set, interval_labels, "eps", log_transform = FALSE)
 
@@ -417,7 +424,7 @@ D_gzt[, 4, ] <- prop_at_gt
 types <- c("BT", "AT", "BTprop", "ATprop")  # labels
 
 # Call the function (ppply log-transform only to the first two intervals (BT and AT))
-plot_spatial_data(grid, D_gzt, year_set, types, output_prefix = "Densities", log_transform = TRUE)
+plot_spatial_data(grid, D_gzt, year_set, types, "Densities", log_transform = TRUE)
 
 # Time series of proportion available by survey -------------------------------
 # Intercepts and data availability
@@ -450,7 +457,7 @@ survey_yr_points <- avail_gear %>%
   filter((Gear == "AT" & Year %in% at_years) | 
            (Gear == "BT" & Year %in% bt_years))
 survey_yr_points <- rbind.data.frame(survey_yr_points,
-                                     cbind.data.frame(Year = unique(dat[Gear == "AVO2", ]$Year),
+                                     cbind.data.frame(Year = unique(dat[Gear == "AVO3", ]$Year),
                                                       Proportion = 0,
                                                       SD = 0,
                                                       Gear = "AVO")) %>%
