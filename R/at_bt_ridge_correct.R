@@ -430,10 +430,8 @@ plot_spatial_data(grid, D_gzt, year_set, types, "Densities", log_transform = TRU
 
 # Time series of proportion available by survey -------------------------------
 # Intercepts and data availability
-cbind( 
-  t(parlist$beta_ct),
-  tapply(dat$Abundance, INDEX = list(factor(dat$Year, levels = year_set), dat$Gear), FUN = length)
-)
+cbind(t(parlist$beta_ct),
+      tapply(dat$Abundance, INDEX = list(factor(dat$Year, levels = year_set), dat$Gear), FUN = length))
 
 indices <- data.frame(Year = year_set,
                       BT = colSums(index_ct[1:3, ]),
@@ -500,7 +498,6 @@ depth_plot
 ggsave(depth_plot, filename = here(results_dir, "avail_depth_plot.png"),
        width = 150, height = 90, units = "mm", dpi = 300)
 
-
 # Index by depth (with SE) ----------------------------------------------------
 # Get index values by depth interval
 ind_depth <- data.frame(Year = year_set,
@@ -518,6 +515,8 @@ ind_depth <- data.frame(Year = year_set,
                          labels = c(">16m", "3-16m", "0.5-3m", "<0.5m"))) %>%
   mutate(Estimate = Estimate / 1000000000,
          SD = SD / 1000000000)
+
+write.csv(ind_depth, here(results_dir, "index_depth.csv"), row.names = FALSE)
 
 ind_depth_plot <- ggplot() +
   geom_line(data = ind_depth, 
