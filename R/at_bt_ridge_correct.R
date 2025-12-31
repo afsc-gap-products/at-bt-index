@@ -39,7 +39,7 @@ if (!requireNamespace("ggsidekick", quietly = TRUE)) {
 library(ggsidekick)
 theme_set(theme_sleek())
 
-results_dir <- here("Results", "4 layers")
+results_dir <- here("Results", "no AVO 4-layer")
 if (!dir.exists(results_dir)) {
   dir.create(results_dir, recursive = TRUE)
 }
@@ -138,7 +138,7 @@ jnll_spde <- function(parlist, what = "jnll") {
     if(Gear[i] == "AT3") yhat <- exp(sum(A_is[i, ] * epsilon_sct[, 4,t_i[i]]) + beta_ct[4, t_i[i]] + mu_c[4] + omega_ic[i, 4])
     # AVO only available for 3-16 and >16
     if(Gear[i] == "AVO2") yhat <- exp(sum(A_is[i, ] * epsilon_sct[, 3, t_i[i]]) + beta_ct[3, t_i[i]] + mu_c[3] + omega_ic[i, 3] + log_catchability)
-    if(Gear[i] == "AVO3") yhat <- exp(sum(A_is[i, ] * epsilon_sct[, 4, t_i[i]]) + beta_ct[4, t_i[i]] + mu_c[4] + omega_ic[i, 4] + log_catchability)
+    # if(Gear[i] == "AVO3") yhat <- exp(sum(A_is[i, ] * epsilon_sct[, 4, t_i[i]]) + beta_ct[4, t_i[i]] + mu_c[4] + omega_ic[i, 4] + log_catchability)
     nll_data <- nll_data - RTMB:::Term(dtweedie(x = b_i[i], 
                                                 mu = yhat, 
                                                 phi = phi,
@@ -316,9 +316,8 @@ pair_df <- data.frame(
 
 # Code up color by survey data availability
 year_key <- rep(year_set, each = dim(eps_array))
-year_key <- case_when(year_key %in% c(2007, 2008, 2011, 2013) ~ "no AVO",
-                      year_key %in% c(2011, 2013, 2015, 2017) ~ "no AT",
-                      TRUE ~ "all surveys")
+year_key <- case_when(year_key %in% c(2011, 2013, 2015, 2017) ~ "no AT",
+                      TRUE ~ "both surveys")
 
 # Plot pairwise by depth category
 pairwise <- function(var1, var2, label1, label2) {
@@ -455,13 +454,13 @@ bt_years <- unique(dat[Gear == "BT", ]$Year)
 
 survey_yr_points <- avail_gear %>% 
   filter((Gear == "AT" & Year %in% at_years) | 
-           (Gear == "BT" & Year %in% bt_years))
-survey_yr_points <- rbind.data.frame(survey_yr_points,
-                                     cbind.data.frame(Year = unique(dat[Gear == "AVO2", ]$Year),
-                                                      Proportion = 0,
-                                                      SD = 0,
-                                                      Gear = "AVO")) %>%
-  mutate(Gear = factor(Gear, levels = c("AT", "BT", "AVO")))
+           (Gear == "BT" & Year %in% bt_years)) 
+# survey_yr_points <- rbind.data.frame(survey_yr_points,
+#                                      cbind.data.frame(Year = unique(dat[Gear == "AVO2", ]$Year),
+#                                                       Proportion = 0,
+#                                                       SD = 0,
+#                                                       Gear = "AVO")) %>%
+#   mutate(Gear = factor(Gear, levels = c("AT", "BT", "AVO")))
 
 gear_plot <- ggplot() +
   geom_line(data = avail_gear, 
@@ -470,8 +469,8 @@ gear_plot <- ggplot() +
              aes(x = Year, y = Proportion, color = Gear, shape = Gear)) +
   geom_ribbon(data = avail_gear, 
               aes(x = Year, ymin = (Proportion - 2 * SD), ymax = (Proportion + 2 * SD), fill = Gear), alpha = 0.4) +
-  scale_color_manual(values = c("#93329E", "#A4C400", "black")) +
-  scale_fill_manual(values = c("#93329E", "#A4C400", "black"))
+  scale_color_manual(values = c("#93329E", "#A4C400")) +
+  scale_fill_manual(values = c("#93329E", "#A4C400"))
 gear_plot
 
 ggsave(gear_plot, filename = here(results_dir, "avail_gear_plot.png"),
