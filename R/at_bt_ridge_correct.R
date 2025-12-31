@@ -258,9 +258,7 @@ opt <- nlminb(obj$par,
               obj$fn, 
               obj$gr, 
               control = list(iter.max = 1e4, eval.max = 1e4, trace = 1))
-save(obj, opt, file = here(results_dir, "model.RData"))
 
-if (!exists("opt")) { load(here(results_dir, "model.RData")) }
 parlist <- obj$env$parList()  # parameter estimates
 Hess <- optimHess(opt$par, obj$fn, obj$gr)
 
@@ -282,6 +280,9 @@ sdrep <- sdreport(obj,
                   bias.correct = FALSE,
                   getReportCovariance = TRUE)
 rep <- obj$report()
+
+save(obj, opt, parlist, Hess, biascor, sdrep, rep, file = here(results_dir, "model.RData"))
+if (!exists("rep")) { load(here(results_dir, "model.RData")) }
 
 # Extract index and proportion ------------------------------------------------
 # Extract index
