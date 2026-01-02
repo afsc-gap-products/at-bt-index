@@ -65,9 +65,24 @@ total_index <- index_results %>%
   summarize(Estimate = sum(Estimate),
             SD = sum(SD)) 
 
-ggplot(total_index) +
-  geom_ribbon(aes(x = Year, ymin = (Estimate - 2 * SD), ymax = (Estimate + 2 * SD), fill = model), alpha = 0.2) +
-  geom_line(aes(x = Year, y = Estimate, color = model)) +
+# Read in sdmTMB index, select EBS only, at-bt model date range, convert to Mt
+index <- readRDS(here("data", "indices.RDS")) %>% 
+  filter(stratum == "EBS") %>%
+  filter(year %in% min(index_results$Year):max(index_results$Year)) %>%
+  mutate(est = est / 1e9, 
+         lwr = lwr / 1e9,
+         upr = upr / 1e9)
+
+ggplot() +
+  geom_ribbon(data = total_index, 
+              aes(x = Year, ymin = (Estimate - 2 * SD), ymax = (Estimate + 2 * SD), fill = model), 
+              alpha = 0.2) +
+  geom_line(data = total_index, 
+            aes(x = Year, y = Estimate, color = model)) +
+  geom_ribbon(data = index,
+              aes(x = year, ymin = lwr, ymax = upr), fill = "darkred", alpha = 0.2) +
+  geom_line(data = index,
+            aes(x = year, y = est), color = "darkred") +
   scale_color_viridis(discrete = TRUE, end = 0.9) +
   scale_fill_viridis(discrete = TRUE, end = 0.9) +
   ylab("Index of Abundance (Mt)") + xlab("") 
