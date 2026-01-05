@@ -45,7 +45,7 @@ if (!dir.exists(results_dir)) {
 }
 
 # Read in data and set up model inputs ----------------------------------------
-year <- format(Sys.Date(), "%Y")
+year <- 2025
 dat <- read.csv(here("data", year, "dat_all.csv")) %>%
   filter(Year <= 2018)
 
@@ -59,13 +59,18 @@ dat_sf <- st_as_sf(dat, coords = c("Lon", "Lat"))
 year_set <- min(dat$Year):max(dat$Year)
 
 # Get EBS area from akgfmaps
-ebs <- akgfmaps::get_base_layers(select.region = "sebs")$survey.area
-ebs <- st_geometry(ebs)
-ebs <- st_transform(ebs, 4326)  # keep in lon/lat for grid creation
-
-grid <- st_make_grid(ebs, cellsize = 0.25)
-grid <- st_intersection(grid, ebs)
-grid <- st_make_valid(grid)
+if(!file.exists(here("data", "ebs_grid.Rdata"))) {
+  ebs <- akgfmaps::get_base_layers(select.region = "sebs")$survey.area
+  ebs <- st_geometry(ebs)
+  ebs <- st_transform(ebs, 4326)  # keep in lon/lat for grid creation
+  
+  grid <- st_make_grid(ebs, cellsize = 0.25)
+  grid <- st_intersection(grid, ebs)
+  grid <- st_make_valid(grid)
+  save(grid, file = here("data", "ebs_grid.Rdata"))
+} else {
+  load(here("data", "ebs_grid.Rdata"))
+}
 
 grid_proj <- st_transform(grid, 3338)  # Reproject grid for accurate centroids
 centroids <- st_centroid(grid_proj)
