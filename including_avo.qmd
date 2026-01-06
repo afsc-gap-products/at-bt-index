@@ -15,42 +15,42 @@ Cole's paper divided the water column into three layers:
 
 > "We define depth layer c=1 between bottom 0.5 m, c=2 between 0.5 and 16m off bottom (the effective fishing height), and c=3 between 16m off bottom and 16m below the surface, with a corresponding total vertical density (in kg/km2) d=d~1~+d~2~+d~3~, where dc is expected density in depth layer c. Then the acoustic gear samples from d~2~ (data set referred to as “AT2”) and d~3~ (data set “AT3”), both of which are separated in post-processing as described above, whereas the BT samples from d~1~+d~2~ combined, with no ability to post-process data to c=1 and c=2 separately. Note that both gears sample from c=2, the overlap layer, and this is a key structural feature of our model."
 
-Nate has processed the AVO data for 2009, 2010, 2012 and 2014-2018 into 1m intervals. **The AVO data are not, however, available below 3m**. Preliminary, we decided to only include the AVO for c~3~ to provide information on the part of the water column not sampled by the BT, but this does not include information about the overlap between acoustic and bottom gears, which may matter in years without an acoustic survey.
+Nate has processed the AVO data for 2009, 2010, 2012, 2014-2019, and 2021-2024 into 1m intervals. **The AVO data are not, however, available below 3m**. Therefore, we have re-stratified the model to include four depth layers, sampled by the surveys as follows:
 
-Preliminary results and plots of the proportion of pollock abundance in each depth layer are presented below.
+-   Below 0.5m from the bottom (BT only)
 
-## Model results using the AVO \>16m from the bottom
+-   0.5m - 3m from the bottom (BT and AT)
 
-Jim Thorson added the AVO data from c~3~ to the model.
+-   3m - 16m from the bottom (BT, AT, and AVO)
 
-Initial model:
+-   16m from the bottom - 16m from the surface (AT and AVO)
 
-![Proportion by depth layer and by gear type for the original model (no AVO). Points on the bottom graph represent years when a survey occurred.](Results/avail_both_noAVO.png)
+Below are the results for the original 3-layer model, the 4-layer model with the AVO included, and a series of sensitivities to removing the 3-16m and \>16m AVO layers.
 
-Updated model:
+## Original 3-layer model
 
-![Proportion by depth layer and gear type for the updated model (including AVO3). Points on the bottom graph represent years when a survey occurred.](Results/avail_both.png)
+![Proportion by depth layer and by gear type for the original, three-layer model (without AVO). Points on the bottom graph represent years when a survey occurred.](Results/no_AVO/avail_both_noAVO.png)
 
-## Proportion of pollock by depth layer
+## Model with 4 depth layers and the AVO
 
-To explore how to / whether to deal with the AVO data in the 3-16m depth interval, I plotted the proportion of AVO and AT biomass by layer.
+When the AVO is included, the uncertainty for both the BT and AT surveys significantly increases in years without the AVO (Figure 2). These years (2011 and 2013) are available, but have not been processed. Including the AVO also changes the estimated proportion available to the AT survey in some years, corresponding to an increase in the proportion of pollock below 0.5m (Fig. 2).
 
-![Mean proportion of abundance by year and survey. Interval 3 is \>16m from the bottom. Interval 2 for the AT is 0.5-16m; for the AVO is 3-16m.](Results/avo%20exploration/mean_proportion.png)
+![Proportion by depth layer and gear type. Points on the bottom graph represent years when a survey occurred.](Results/4_layers/avail_both.png) 
 
-For the AVO, there is a consistently higher proportion of abundance in the shallower interval, likely due to the missing 0.5-3m data.
+The increase in uncertainty in years without the AVO index appears to result from the uncertainty in the \<0.5m depth layer(Fig. 3).
 
-Looking at the more granular AT data, there is a significant proportion of biomass in the 0.5-3m depth layer, and there is some spatiotemporal variability in the proportion-at-depth. These fish are, however, theoretically being sampled by the bottom trawl survey.
+![Biomass in millions of tons by depth layer.](Results/4_layers/index_depth_plot_4layers.png)
 
-![Mean proportion of pollock biomass from the AT survey by depth interval.](Results/avo%20exploration/at_annual_proportion.png)
+## Sensitivities
 
-![Annual proportion of pollock biomass by depth interval across the survey domain.](Results/avo%20exploration/at_proportion_map.png)
+We also ran the model with four layers and no AVO, exluding the 3-16m AVO layer, and excluding the \>16m AVO layer. The proportion available to the acoustic trawl surveys was relatively consistent, with an increase in uncertainty for years without an acoustic survey (2015 and 2017) when the \>16m AVO layer was excluded (and when all AVO was excluded; Fig. 4).
 
-## Model results with 4 depth intervals
+![Proportion of pollock available to the acoustic (AT) and bottom trawl (BT) surveys for the model with 4 layers and the AVO, the model with 4 layers and no AVO, the model excluding the 3-16m AVO layer, and excluding the \>16m AVO layer.](Results/model_compare_gear.png)
 
-Because the AVO does not include the interval from 0.5-3m from the bottom, I split the acoustic data into three intervals, with a split at 3m. Now, the BT survey covers intervals 1-3; the AT survey covers 2-4; the AVO index covers 3 and 4. The results significantly increase the uncertainty for both the BT and AT surveys in years without the AVO. These years (2011 and 2013) are available, but have not been processed. Including both layers does also change the estimated proportion available to the AT survey in some years, corresponding to an increase in the proportion of pollock below 0.5m.
+This increase in uncertainty when the \>16m AVO layer was removed is again due to an increase in uncertainty in the \<0.5 depth layer (Fig. 5). When the 3-16m AVO layer was removed, there was an increase in the estimated biomass in the 0.5-3m layer and a decrease in the 3-16m layer in 2017, a year without an acoustic survey (Fig. 5).
 
-![Proportion by depth layer and gear type for the model with four depth intervals. Points on the bottom graph represent years when a survey occurred.](Results/avail_both_4layers.png)
+![Biomass (in millions of tons) in each depth layer for for the model with 4 layers and the AVO, the model with 4 layers and no AVO, the model excluding the 3-16m AVO layer, and excluding the \>16m AVO layer.](Results/model_compare_depth.png)
 
 ## Next steps
 
-We're looking for feedback on whether we need to dig into including the deeper (3-16m from the bottom) AVO data. For the purposes of a combined index, is the information on overlap between the AVO and BT surveys important? If so, it seems we would need the AVO index to be available for every year of data collection.
+We are continuing to develop diagnostics for the model and exploring whether to include correlations across depth layers. We will also be expanding the time-series. Eventually, we will explore options for including the index in some form in the pollock assessment.
