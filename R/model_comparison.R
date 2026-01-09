@@ -23,9 +23,13 @@ read_model <- function(wd, filetype) {
 gear_results <- bind_rows(read_model("4 layers", "availability_gear.csv"),
                           read_model("no AVO 3-16", "availability_gear.csv"),
                           read_model("no AVO 16", "availability_gear.csv"),
-                          read_model("no AVO 4-layer", "availability_gear.csv"))
+                          read_model("no AVO 4-layer", "availability_gear.csv"),
+                          read_model("no AT 3-16", "availability_gear.csv"),
+                          read_model("no AT 16", "availability_gear.csv"))
 gear_results$model <- factor(gear_results$model, 
-                             levels = c("4 layers", "no AVO 4-layer", "no AVO 3-16", "no AVO 16"))
+                             levels = c("4 layers", "no AVO 4-layer", 
+                                        "no AVO 3-16", "no AVO 16",
+                                        "no AT 3-16", "no AT 16"))
 
 ggplot() +
   geom_line(data = gear_results, 
@@ -42,9 +46,13 @@ ggsave(filename = here("Results", "model_compare_gear.png"),
 index_results <- bind_rows(read_model("4 layers", "index_depth.csv"),
                            read_model("no AVO 3-16", "index_depth.csv"),
                            read_model("no AVO 16", "index_depth.csv"),
-                           read_model("no AVO 4-layer", "index_depth.csv"))
+                           read_model("no AVO 4-layer", "index_depth.csv"),
+                           read_model("no AT 3-16", "index_depth.csv"),
+                           read_model("no AT 16", "index_depth.csv"))
 index_results$model <- factor(index_results$model, 
-                             levels = c("4 layers", "no AVO 4-layer", "no AVO 3-16", "no AVO 16"))
+                             levels = c("4 layers", "no AVO 4-layer", 
+                                        "no AVO 3-16", "no AVO 16", 
+                                        "no AT 3-16", "no AT 16"))
 index_results$Height <- factor(index_results$Height, 
                                levels = c("<0.5m", "0.5-3m", "3-16m", ">16m"))
 
