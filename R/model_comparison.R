@@ -97,3 +97,20 @@ ggplot() +
 
 ggsave(filename = here("Results", "total_index_compare.png"),
        width = 150, height = 90, units = "mm", dpi = 300)
+
+# Comparison across survey years ----------------------------------------------
+gear_results <- gear_results %>%
+  mutate(surveys = case_when(Year %in% c(2009, 2010, 2012, 2014, 2016, 2018) ~ "all surveys",
+                             Year %in% c(2007, 2008) ~ "no AVO",
+                             Year %in% c(2015, 2017) ~ "no AT",
+                             Year %in% c(2011, 2013) ~ "only BT"))
+ggplot(gear_results) +
+  geom_pointrange(aes(x = Gear, y = Proportion, 
+                      ymin = (Proportion - 2 * SD), ymax = (Proportion + 2 * SD),
+                      color = model),
+                  position = position_dodge(width = 0.2), alpha = 0.8) +
+  scale_color_viridis(discrete = TRUE, end = 0.9) +
+  facet_wrap(~ surveys)
+
+ggsave(filename = here("Results", "point_gear_compare.png"),
+       width = 170, height = 120, units = "mm", dpi = 300)
