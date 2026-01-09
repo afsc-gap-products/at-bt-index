@@ -39,7 +39,7 @@ if (!requireNamespace("ggsidekick", quietly = TRUE)) {
 library(ggsidekick)
 theme_set(theme_sleek())
 
-results_dir <- here("Results", "4 layers")
+results_dir <- here("Results", "no AT 0.5-3")
 if (!dir.exists(results_dir)) {
   dir.create(results_dir, recursive = TRUE)
 }
@@ -47,7 +47,8 @@ if (!dir.exists(results_dir)) {
 # Read in data and set up model inputs ----------------------------------------
 year <- 2025
 dat <- read.csv(here("data", year, "dat_all.csv")) %>%
-  filter(Year <= 2018)
+  filter(Year <= 2018) %>%
+  filter(Gear != "AT1")
 
 # # Thin AVO3 samples
 # which_AVO3 <- which(dat$Gear == "AVO3")
@@ -98,6 +99,7 @@ M0 <- spde$c0  # mass matrix
 M1 <- spde$g1  # gradient matrix (first derivative)
 M2 <- spde$g2  # stiffness matrix (second derivative / Laplacian)
 
+# Indexed by depth layer
 parlist <- list(
   mu_c = rep(0, 4),
   beta_ct = array(0, dim = c(4, max(t_i))),
@@ -139,7 +141,7 @@ jnll_spde <- function(parlist, what = "jnll") {
     }
     # AT disaggregated into 0.5-3, 3-16, and >16
     if(Gear[i] == "AT1") yhat <- exp(sum(A_is[i, ] * epsilon_sct[, 2, t_i[i]]) + beta_ct[2, t_i[i]] + mu_c[2] + omega_ic[i, 2])
-    if(Gear[i] == "AT2") yhat <- exp(sum(A_is[i, ] * epsilon_sct[, 3, t_i[i]]) + beta_ct[3, t_i[i]] + mu_c[3] + omega_ic[i, 3]) 
+    if(Gear[i] == "AT2") yhat <- exp(sum(A_is[i, ] * epsilon_sct[, 3, t_i[i]]) + beta_ct[3, t_i[i]] + mu_c[3] + omega_ic[i, 3])
     if(Gear[i] == "AT3") yhat <- exp(sum(A_is[i, ] * epsilon_sct[, 4,t_i[i]]) + beta_ct[4, t_i[i]] + mu_c[4] + omega_ic[i, 4])
     # AVO only available for 3-16 and >16
     if(Gear[i] == "AVO2") yhat <- exp(sum(A_is[i, ] * epsilon_sct[, 3, t_i[i]]) + beta_ct[3, t_i[i]] + mu_c[3] + omega_ic[i, 3] + log_catchability)
