@@ -40,7 +40,7 @@ ggplot() +
   facet_grid(model ~ Gear)
 
 ggsave(filename = here("Results", "model_compare_gear.png"), 
-       width = 200, height = 200, units = "mm", dpi = 300)
+       width = 180, height = 200, units = "mm", dpi = 300)
 
 # Index by depth across models ------------------------------------------------
 index_results <- bind_rows(read_model("4 layers", "index_depth.csv"),
@@ -88,9 +88,9 @@ ggplot() +
   geom_line(data = total_index, 
             aes(x = Year, y = Estimate, color = model)) +
   geom_ribbon(data = index,
-              aes(x = year, ymin = lwr, ymax = upr), fill = "darkred", alpha = 0.2) +
+              aes(x = year, ymin = lwr, ymax = upr), fill = "magenta", alpha = 0.2) +
   geom_line(data = index,
-            aes(x = year, y = est), color = "darkred") +
+            aes(x = year, y = est), color = "magenta") +
   scale_color_viridis(discrete = TRUE, end = 0.9) +
   scale_fill_viridis(discrete = TRUE, end = 0.9) +
   ylab("Index of Abundance (Mt)") + xlab("") 
