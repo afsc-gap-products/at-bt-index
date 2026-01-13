@@ -286,10 +286,11 @@ sdrep <- sdreport(obj,
                   getReportCovariance = TRUE)
 rep <- obj$report()
 
-save(obj, opt, parlist, Hess, biascor, sdrep, rep, file = here(results_dir, "model.RData"))
-if (!exists("rep")) { load(here(results_dir, "model.RData")) }
+save(obj, opt, parlist, Hess, biascor, sdrep, rep, year_set, file = here(results_dir, "model.RData"))
 
 # Extract index and proportion ------------------------------------------------
+if (!exists("obj")) { load(here(results_dir, "model.RData")) }
+
 # Extract index
 SD_report <- as.list(sdrep, report = TRUE, what = "Std. Error")
 cov <- as.list(sdrep, report = TRUE, what = "")
