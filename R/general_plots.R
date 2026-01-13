@@ -220,7 +220,7 @@ ggsave(avail_both, filename = here(dir, "avail_both_avo.png"),
        width = 150, height = 150, units = "mm", dpi = 300)
 
 # Index by depth
-ind_depth <- read.csv(here("Results", "no AVO 4-layer", "index_depth.csv")) %>%
+ind_depth <- read.csv(here("Results", "4_layers", "index_depth.csv")) %>%
   mutate(Height = factor(Height, levels = c(">16m", "3-16m", "0.5-3m", "<0.5m")))
 
 ind_depth_plot <- ggplot() +
