@@ -286,10 +286,11 @@ sdrep <- sdreport(obj,
                   getReportCovariance = TRUE)
 rep <- obj$report()
 
-save(obj, opt, parlist, Hess, biascor, sdrep, rep, file = here(results_dir, "model.RData"))
-if (!exists("rep")) { load(here(results_dir, "model.RData")) }
+save(obj, opt, parlist, Hess, biascor, sdrep, rep, year_set, file = here(results_dir, "model.RData"))
 
 # Extract index and proportion ------------------------------------------------
+if (!exists("obj")) { load(here(results_dir, "model.RData")) }
+
 # Extract index
 SD_report <- as.list(sdrep, report = TRUE, what = "Std. Error")
 cov <- as.list(sdrep, report = TRUE, what = "")
@@ -516,7 +517,7 @@ ind_depth <- data.frame(Year = year_set,
                                  t(index_se_ct)), 
                       id.vars = "Year", value.name = "SD")$SD) %>%
   mutate(Height = factor(Height, 
-                         levels = c("depth1", "depth2", "depth3", "depth4"), 
+                         levels = c("depth4", "depth3", "depth2", "depth1"), 
                          labels = c(">16m", "3-16m", "0.5-3m", "<0.5m"))) %>%
   mutate(Estimate = Estimate / 1000000000,
          SD = SD / 1000000000)
