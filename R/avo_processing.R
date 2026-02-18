@@ -18,7 +18,8 @@ library(ggsidekick)
 theme_set(theme_sleek())
 
 # Set up output folder and processing inputs ----------------------------------
-year <- format(Sys.Date(), "%Y")
+# year <- format(Sys.Date(), "%Y")
+year <- 2025
 wd <- here("data", year)
 
 # Whether to make the plots when running the code (set to FALSE to save time)

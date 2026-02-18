@@ -4,12 +4,13 @@ library(here)
 library(dplyr)
 library(ggplot2)
 
-year <- format(Sys.Date(), "%Y")
+# year <- format(Sys.Date(), "%Y")
+year <- 2025
 
 # Read in and combine ---------------------------------------------------------
 at <- read.csv(here("data", "at", "ats_16.csv"))
-bt <- read.csv(here("data", year, "bt_processed.csv"))
-avo <- read.csv(here("data", year, "avo_binned.csv")) 
+bt <- read.csv(here("data", year, "bt_noddc.csv"))  # made in bt_processing.R
+avo <- read.csv(here("data", year, "avo_binned.csv"))  # made in avo_processing.R
 
 at_new <- at %>%
   select(-surface, -X) %>%
@@ -24,7 +25,7 @@ bt_new <- bt %>% filter(Year >= 2007)
 
 dat_new <- rbind.data.frame(at_new, bt_new, avo)
   
-write.csv(dat_new, here("data", year, "dat_all.csv"), row.names = FALSE)
+write.csv(dat_new, here("data", year, "dat_all_noddc.csv"), row.names = FALSE)
 
 # Check if raw data looks ok --------------------------------------------------
 # library(ggsidekick)
