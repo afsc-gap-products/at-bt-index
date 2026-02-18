@@ -14,6 +14,8 @@
 *.rds
 *.html
 *.Rdata
+*.zip
+*.db
 
 # Ignore EBS shelf shapefiles
 EBSshelf*
