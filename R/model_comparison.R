@@ -19,7 +19,7 @@ read_model <- function(wd, filetype) {
   return(df)
 }
 
-# Availability to gear across models ------------------------------------------
+# Sensitivity to removing layers of data (availability by gear) ---------------
 gear_results <- bind_rows(read_model("4 layers", "availability_gear.csv"),
                           read_model("no AVO 3-16", "availability_gear.csv"),
                           read_model("no AVO 16", "availability_gear.csv"),
@@ -42,7 +42,7 @@ ggplot() +
 ggsave(filename = here("Results", "model_compare_gear.png"), 
        width = 180, height = 200, units = "mm", dpi = 300)
 
-# Index by depth across models ------------------------------------------------
+# Sensitivity to removing layers of data (index by depth) ---------------------
 index_results <- bind_rows(read_model("4 layers", "index_depth.csv"),
                            read_model("no AVO 3-16", "index_depth.csv"),
                            read_model("no AVO 16", "index_depth.csv"),
@@ -66,6 +66,23 @@ ggplot() +
 
 ggsave(filename = here("Results", "model_compare_depth.png"), 
        width = 240, height = 180, units = "mm", dpi = 300)
+
+# Sensitivity to removing layers of data (across survey years) ----------------
+gear_results <- gear_results %>%
+  mutate(surveys = case_when(Year %in% c(2009, 2010, 2012, 2014, 2016, 2018) ~ "all surveys",
+                             Year %in% c(2007, 2008) ~ "no AVO",
+                             Year %in% c(2015, 2017) ~ "no AT",
+                             Year %in% c(2011, 2013) ~ "only BT"))
+ggplot(gear_results) +
+  geom_pointrange(aes(x = Gear, y = Proportion, 
+                      ymin = (Proportion - 2 * SD), ymax = (Proportion + 2 * SD),
+                      color = model),
+                  position = position_dodge(width = 0.2), alpha = 0.8) +
+  scale_color_viridis(discrete = TRUE, end = 0.9) +
+  facet_wrap(~ surveys)
+
+ggsave(filename = here("Results", "point_gear_compare.png"),
+       width = 170, height = 120, units = "mm", dpi = 300)
 
 # Total index of abundance across models --------------------------------------
 total_index <- index_results %>% 
@@ -98,19 +115,49 @@ ggplot() +
 ggsave(filename = here("Results", "total_index_compare.png"),
        width = 150, height = 90, units = "mm", dpi = 300)
 
-# Comparison across survey years ----------------------------------------------
-gear_results <- gear_results %>%
-  mutate(surveys = case_when(Year %in% c(2009, 2010, 2012, 2014, 2016, 2018) ~ "all surveys",
-                             Year %in% c(2007, 2008) ~ "no AVO",
-                             Year %in% c(2015, 2017) ~ "no AT",
-                             Year %in% c(2011, 2013) ~ "only BT"))
-ggplot(gear_results) +
-  geom_pointrange(aes(x = Gear, y = Proportion, 
-                      ymin = (Proportion - 2 * SD), ymax = (Proportion + 2 * SD),
-                      color = model),
-                  position = position_dodge(width = 0.2), alpha = 0.8) +
-  scale_color_viridis(discrete = TRUE, end = 0.9) +
-  facet_wrap(~ surveys)
+# Comparison with density-corrected BT CPUE (availability by gear) ------------
+gear_ddc <- bind_rows(read_model("4 layers", "availability_gear.csv"),
+                      read_model("non DDC", "availability_gear.csv"))
+gear_ddc$model <- factor(gear_ddc$model, 
+                         levels = c("4 layers", "non DDC"), 
+                         labels = c("DDC", "base"))
 
-ggsave(filename = here("Results", "point_gear_compare.png"),
-       width = 170, height = 120, units = "mm", dpi = 300)
+ggplot() +
+  geom_line(data = gear_ddc, aes(x = Year, y = Proportion, color = model)) +
+  geom_ribbon(data = gear_ddc, 
+              aes(x = Year, 
+                  ymin = (Proportion - 2 * SD), ymax = (Proportion + 2 * SD),
+                  fill = model), 
+              alpha = 0.4) +
+  ylab("Proportion available") + xlab("") +
+  scale_color_viridis(discrete = TRUE, end = 0.9) +
+  scale_fill_viridis(discrete = TRUE, end = 0.9) +
+  facet_wrap(~ Gear, ncol = 1)
+
+ggsave(filename = here("Results", "ddc_gear_compare.png"),
+       width = 130, height = 120, units = "mm", dpi = 300)
+
+# Comparison with density-corrected BT CPUE (index by depth) ------------------
+index_ddc <- bind_rows(read_model("4 layers", "index_depth.csv"),
+                       read_model("non DDC", "index_depth.csv"))
+index_ddc$model <- factor(index_ddc$model, 
+                          levels = c("4 layers", "non DDC"), 
+                          labels = c("DDC", "base"))
+index_ddc$Height <- factor(index_ddc$Height,
+                           levels = c(">16m", "3-16m", "0.5-3m", "<0.5m"))
+
+ggplot() +
+  geom_line(data = index_ddc, 
+            aes(x = Year, y = Estimate, color = model)) +
+  geom_ribbon(data = index_ddc, 
+              aes(x = Year, 
+                  ymin = (Estimate - 2 * SD), ymax = (Estimate + 2 * SD), 
+                  fill = model), 
+              alpha = 0.4) +
+  scale_color_viridis(discrete = TRUE, end = 0.9) +
+  scale_fill_viridis(discrete = TRUE, end = 0.9) +
+  ylab("Index of Abundance (Mt)") + xlab("") +
+  facet_wrap(~ Height)
+
+ggsave(filename = here("Results", "ddc_index_compare.png"),
+       width = 160, height = 100, units = "mm", dpi = 300)
