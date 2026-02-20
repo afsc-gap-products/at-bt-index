@@ -12,6 +12,7 @@ at <- read.csv(here("data", "at", "ats_16.csv"))
 bt <- read.csv(here("data", year, "bt_noddc.csv"))  # made in bt_processing.R
 avo <- read.csv(here("data", year, "avo_binned.csv"))  # made in avo_processing.R
 
+# Reconfigure AT dataframe to match BT and AVO dataframes
 at_new <- at %>%
   select(-surface, -X) %>%
   rename(AT1 = strata1, AT2 = strata2, AT3 = strata3) %>%
@@ -21,6 +22,7 @@ at_new <- at %>%
   rename(Lat = lat, Lon = lon, Year = year) %>%
   select(Lat, Lon, Year, Abundance, Gear)
 
+# Remove years before 2007 (when the AT time series starts)
 bt_new <- bt %>% filter(Year >= 2007)
 
 dat_new <- rbind.data.frame(at_new, bt_new, avo)
@@ -28,15 +30,15 @@ dat_new <- rbind.data.frame(at_new, bt_new, avo)
 write.csv(dat_new, here("data", year, "dat_all_noddc.csv"), row.names = FALSE)
 
 # Check if raw data looks ok --------------------------------------------------
-# library(ggsidekick)
-# theme_set(theme_sleek())
-# 
-# test <- rbind.data.frame(at_new %>% mutate(Gear = "AT"), 
-#                          bt_new %>% mutate(Gear = "BT"),
-#                          avo %>% mutate(Gear = "AVO")) %>% 
-#   group_by(Year, Gear) %>%
-#   summarize(Mean = mean(Abundance)) %>%
-#   ggplot(.) +
-#   geom_bar(aes(x = Year, y = Mean, fill = Gear), 
-#            position = "dodge", stat = "identity")
-# test
+library(ggsidekick)
+theme_set(theme_sleek())
+
+test <- rbind.data.frame(at_new %>% mutate(Gear = "AT"),
+                         bt_new %>% mutate(Gear = "BT"),
+                         avo %>% mutate(Gear = "AVO")) %>%
+  group_by(Year, Gear) %>%
+  summarize(Mean = mean(Abundance)) %>%
+  ggplot(.) +
+  geom_bar(aes(x = Year, y = Mean, fill = Gear),
+           position = "dodge", stat = "identity")
+test

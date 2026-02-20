@@ -61,18 +61,17 @@ write.csv(hauls, file = here(wd, "hauls.csv"), row.names = FALSE)
 # Read in density-dependent corrected pollock & combine with haul info --------
 ddc_cpue <- read.csv(here("data", "bt", paste0("VAST_ddc_all_", year, ".csv")))  # density dependence corrected
 
-cpue_depth <- ddc_cpue %>%
+ddc_cpue_out <- ddc_cpue %>%
   left_join(hauls, by = "hauljoin") %>%
-  mutate(height = bottom_depth - gear_depth) %>%  # calculate height off bottom 
+  # mutate(height = bottom_depth - gear_depth) %>%  # calculate height off bottom 
   select(Lat = start_latitude, 
          Lon = start_longitude,
          Year = year.x,
          Abundance = ddc_cpue_kg_ha) %>%
   mutate(Abundance = Abundance * 100) %>%  # convert from kg/ha to kg/km2
-  mutate(Gear = "BT") %>%
-  filter(Year >= 2007)
+  mutate(Gear = "BT") 
 
-write.csv(cpue_depth, file = here(wd, "bt_processed.csv"), row.names = FALSE)
+write.csv(ddc_cpue_out, file = here(wd, "bt_processed.csv"), row.names = FALSE)
 
 # Compare with original dataset -----------------------------------------------
 # bt_old <- read.csv(here("data", "dat_all_at.csv")) %>%
@@ -134,6 +133,21 @@ ebs_cpue <- calc_cpue(gapdata = ebs_data) %>%
             Lon = LONGITUDE_DD_START,
             Year = as.integer(YEAR),
             Abundance =  CPUE_KGKM2, 
-            Gear = "BT")
+            Gear = "BT") 
 
 write.csv(ebs_cpue, file = here(wd, "bt_noddc.csv"), row.names = FALSE)
+
+# Compare DDC and uncorrected CPUE --------------------------------------------
+# annual_ddc <- ddc_cpue_out %>%
+#   group_by(Year) %>%
+#   summarize(CPUE = sum(Abundance)) %>%
+#   mutate(data = "DDC")
+# 
+# annual_ebs <- ebs_cpue %>%
+#   group_by(Year) %>%
+#   summarize(CPUE = sum(Abundance)) %>%
+#   mutate(data = "base")
+# 
+# ggplot(bind_rows(annual_ddc, annual_ebs), aes(x = Year, y = CPUE, color = data)) +
+#   geom_line() +
+#   geom_point()

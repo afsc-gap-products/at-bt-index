@@ -34,7 +34,7 @@ survey_years <- bind_rows(
                                             "Acoustic vessels of opportunity (AVO)"))) %>%
   ggplot(.) +
   geom_point(aes(x = year, y = occurred, color = survey)) +
-  scale_color_manual(values = c("#414081", "#2FB47C", "#FDE725")) +
+  scale_color_manual(values = c("#834beb", "#2FB47C", "#FDE725")) +
   facet_wrap(~survey, ncol = 1) +
   theme(legend.position = "none",
         axis.text.y  = element_blank(),
@@ -103,7 +103,7 @@ survey_locations <- ggplot(data = world) +
   geom_point(data = all_dat, 
              aes(x = Lon, y = Lat, color = Gear)) +
   coord_sf(xlim = c(-179, -157), ylim = c(53.8, 63.5), expand = FALSE) +
-  scale_color_manual(values = c("#414081", "#2FB47C", "#FDE725")) +
+  scale_color_manual(values = c("#834beb", "#2FB47C", "#FDE725")) +
   theme(axis.title = element_blank(),
         axis.text = element_blank(),
         axis.ticks = element_blank(),
@@ -116,9 +116,9 @@ ggsave(survey_locations, filename = here(dir, "survey_locations.png"),
        width = 7, height = 3, units = "in", dpi = 300, bg = "transparent")
 
 # Original model results ------------------------------------------------------
-avail_depth <- read.csv(here("Results", "availability_depth_noAVO.csv"))[, -1] %>%
+avail_depth <- read.csv(here("Results", "archive", "availability_depth_noAVO.csv"))[, -1] %>%
   mutate(Height = factor(Height, levels = c(">16m", "0.5-16m", "<0.5m")))
-avail_gear <- read.csv(here("Results", "availability_gear_noAVO.csv"))[, -1] %>%
+avail_gear <- read.csv(here("Results", "archive", "availability_gear_noAVO.csv"))[, -1] %>%
   mutate(Gear = factor(Gear, levels = c("BT", "AT"))) 
 
 at_years <- c(2007:2010, 2012, 2014, 2016, 2018)
@@ -136,8 +136,8 @@ gear_plot <- ggplot() +
              aes(x = Year, y = Proportion, color = Gear, shape = Gear)) +
   geom_ribbon(data = avail_gear, 
               aes(x = Year, ymin = (Proportion - 2 * SD), ymax = (Proportion + 2 * SD), fill = Gear), alpha = 0.4) +
-  scale_color_manual(values = c("#414081", "#2FB47C")) +
-  scale_fill_manual(values = c("#414081", "#2FB47C")) +
+  scale_color_manual(values = c("#834beb", "#2FB47C")) +
+  scale_fill_manual(values = c("#834beb", "#2FB47C")) +
   ylim(0, NA) +
   xlab("")
 gear_plot
@@ -164,10 +164,10 @@ ggsave(avail_both, filename = here(dir, "avail_both_original.png"),
        width = 150, height = 150, units = "mm", dpi = 300)
 
 # Model results with AVO & 4 layers -------------------------------------------
-avail_depth <- read.csv(here("Results", "availability_depth_4layers.csv")) %>%
+avail_depth <- read.csv(here("Results","4 layers", "availability_depth.csv")) %>%
   filter(Year <= 2018) %>%
   mutate(Height = factor(Height, levels = c(">16m", "3-16m", "0.5-3m", "<0.5m")))
-avail_gear <- read.csv(here("Results", "availability_gear_4layers.csv")) %>%
+avail_gear <- read.csv(here("Results","4 layers", "availability_gear.csv")) %>%
   mutate(Gear = factor(Gear, levels = c("BT", "AT"))) %>%
   filter(Year <= 2018)
 
@@ -193,8 +193,8 @@ gear_plot <- ggplot() +
              aes(x = Year, y = Proportion, color = Gear, shape = Gear)) +
   geom_ribbon(data = avail_gear, 
               aes(x = Year, ymin = (Proportion - 2 * SD), ymax = (Proportion + 2 * SD), fill = Gear), alpha = 0.4) +
-  scale_color_manual(values = c("#414081", "#2FB47C", "#FDE725")) +
-  scale_fill_manual(values = c("#414081", "#2FB47C")) +
+  scale_color_manual(values = c("#834beb", "#2FB47C", "#FDE725")) +
+  scale_fill_manual(values = c("#834beb", "#2FB47C")) +
   xlab("")
 gear_plot
 
@@ -250,9 +250,13 @@ read_model <- function(wd, filetype) {
 gear_results <- bind_rows(read_model("4 layers", "availability_gear.csv"),
                           read_model("no AVO 3-16", "availability_gear.csv"),
                           read_model("no AVO 16", "availability_gear.csv"),
-                          read_model("no AVO 4-layer", "availability_gear.csv"))
+                          read_model("no AVO 4-layer", "availability_gear.csv"),
+                          read_model("no AT 3-16", "availability_gear.csv"),
+                          read_model("no AT 16", "availability_gear.csv"))
 gear_results$model <- factor(gear_results$model, 
-                             levels = c("4 layers", "no AVO 4-layer", "no AVO 3-16", "no AVO 16"))
+                             levels = c("4 layers", "no AVO 4-layer", 
+                                        "no AVO 3-16", "no AVO 16",
+                                        "no AT 3-16", "no AT 16"))
 
 ggplot() +
   geom_line(data = gear_results, 
@@ -263,32 +267,37 @@ ggplot() +
   facet_grid(Gear ~ model)
 
 ggsave(filename = here("Results", "wkuser", "model_compare_gear.png"), 
-       width = 200, height = 90, units = "mm", dpi = 300)
+       width = 220, height = 90, units = "mm", dpi = 300)
 
-# Index by depth across models 
+# Index by depth across models
 index_results <- bind_rows(read_model("4 layers", "index_depth.csv"),
                            read_model("no AVO 3-16", "index_depth.csv"),
                            read_model("no AVO 16", "index_depth.csv"),
-                           read_model("no AVO 4-layer", "index_depth.csv"))
-index_results$model <- factor(index_results$model, 
-                              levels = c("4 layers", "no AVO 4-layer", "no AVO 3-16", "no AVO 16"))
-index_results$Height <- factor(index_results$Height, 
-                               levels = c("<0.5m", "0.5-3m", "3-16m", ">16m"))
-
-ggplot() +
-  geom_line(data = index_results, 
-            aes(x = Year, y = Estimate), color = "#2FB47C") +
-  geom_ribbon(data = index_results, 
-              aes(x = Year, ymin = (Estimate - 2 * SD), ymax = (Estimate + 2 * SD)), 
-              fill = "#2FB47C", alpha = 0.4) +
-  ylab("Index of Abundance (Mt)") + xlab("") +
-  facet_grid(model ~ Height)
-
-ggsave(filename = here("Results", "wkuser", "model_compare_depth.png"), 
-       width = 240, height = 180, units = "mm", dpi = 300)
+                           read_model("no AVO 4-layer", "index_depth.csv"),
+                           read_model("no AT 3-16", "index_depth.csv"),
+                           read_model("no AT 16", "index_depth.csv"))
+index_results$model <- factor(index_results$model,
+                              levels = c("4 layers", "no AVO 4-layer",
+                                         "no AVO 3-16", "no AVO 16",
+                                         "no AT 3-16", "no AT 16"))
+# index_results$Height <- factor(index_results$Height, 
+#                                levels = c("<0.5m", "0.5-3m", "3-16m", ">16m"))
+# 
+# ggplot() +
+#   geom_line(data = index_results, 
+#             aes(x = Year, y = Estimate), color = "#2FB47C") +
+#   geom_ribbon(data = index_results, 
+#               aes(x = Year, ymin = (Estimate - 2 * SD), ymax = (Estimate + 2 * SD)), 
+#               fill = "#2FB47C", alpha = 0.4) +
+#   ylab("Index of Abundance (Mt)") + xlab("") +
+#   facet_grid(model ~ Height)
+# 
+# ggsave(filename = here("Results", "wkuser", "model_compare_depth.png"), 
+#        width = 240, height = 180, units = "mm", dpi = 300)
 
 # Total index of abundance across models 
 total_index <- index_results %>% 
+  filter(model %in% c("4 layers", "no AVO 4-layer")) %>%
   group_by(model, Year) %>%
   summarize(Estimate = sum(Estimate),
             SD = sum(SD)) 
@@ -308,11 +317,11 @@ ggplot() +
   geom_line(data = total_index, 
             aes(x = Year, y = Estimate, color = model)) +
   geom_ribbon(data = index,
-              aes(x = year, ymin = lwr, ymax = upr), fill = "red", alpha = 0.2) +
+              aes(x = year, ymin = lwr, ymax = upr), fill = "#c107f5", alpha = 0.2) +
   geom_line(data = index,
-            aes(x = year, y = est), color = "red") +
-  scale_color_viridis(discrete = TRUE, end = 0.9) +
-  scale_fill_viridis(discrete = TRUE, end = 0.9) +
+            aes(x = year, y = est), color = "#c107f5") +
+  scale_color_viridis(discrete = TRUE, begin = 0.6) +
+  scale_fill_viridis(discrete = TRUE, begin = 0.6) +
   ylab("Index of Abundance (Mt)") + xlab("") 
 
 ggsave(filename = here("Results", "wkuser", "total_index_compare.png"),
