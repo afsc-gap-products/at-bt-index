@@ -9,7 +9,7 @@ year <- 2025
 
 # Read in and combine ---------------------------------------------------------
 at <- read.csv(here("data", "at", "ats_16.csv"))
-bt <- read.csv(here("data", year, "bt_noddc.csv"))  # made in bt_processing.R
+bt <- read.csv(here("data", year, "bt_processed_onlyEBS.csv"))  # made in bt_processing.R
 avo <- read.csv(here("data", year, "avo_binned.csv"))  # made in avo_processing.R
 
 # Reconfigure AT dataframe to match BT and AVO dataframes
@@ -27,7 +27,7 @@ bt_new <- bt %>% filter(Year >= 2007)
 
 dat_new <- rbind.data.frame(at_new, bt_new, avo)
   
-write.csv(dat_new, here("data", year, "dat_all_noddc.csv"), row.names = FALSE)
+write.csv(dat_new, here("data", year, "dat_all.csv"), row.names = FALSE)
 
 # Check if raw data looks ok --------------------------------------------------
 library(ggsidekick)

@@ -117,10 +117,11 @@ ggsave(filename = here("Results", "total_index_compare.png"),
 
 # Comparison with density-corrected BT CPUE (availability by gear) ------------
 gear_ddc <- bind_rows(read_model("4 layers", "availability_gear.csv"),
-                      read_model("non DDC", "availability_gear.csv"))
+                      read_model("non DDC", "availability_gear.csv"),
+                      read_model("only EBS", "availability_gear.csv"))
 gear_ddc$model <- factor(gear_ddc$model, 
-                         levels = c("4 layers", "non DDC"), 
-                         labels = c("DDC", "base"))
+                         levels = c("4 layers", "non DDC", "only EBS"), 
+                         labels = c("DDC", "base", "EBS"))
 
 ggplot() +
   geom_line(data = gear_ddc, aes(x = Year, y = Proportion, color = model)) +
@@ -139,10 +140,11 @@ ggsave(filename = here("Results", "ddc_gear_compare.png"),
 
 # Comparison with density-corrected BT CPUE (index by depth) ------------------
 index_ddc <- bind_rows(read_model("4 layers", "index_depth.csv"),
-                       read_model("non DDC", "index_depth.csv"))
+                       read_model("non DDC", "index_depth.csv"),
+                       read_model("only EBS", "index_depth.csv"))
 index_ddc$model <- factor(index_ddc$model, 
-                          levels = c("4 layers", "non DDC"), 
-                          labels = c("DDC", "base"))
+                          levels = c("4 layers", "non DDC", "only EBS"), 
+                          labels = c("DDC", "base", "EBS"))
 index_ddc$Height <- factor(index_ddc$Height,
                            levels = c(">16m", "3-16m", "0.5-3m", "<0.5m"))
 

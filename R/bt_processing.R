@@ -59,7 +59,7 @@ hauls <- sqlQuery(channel, query_command) %>%
 write.csv(hauls, file = here(wd, "hauls.csv"), row.names = FALSE)
 
 # Read in density-dependent corrected pollock & combine with haul info --------
-ddc_cpue <- read.csv(here("data", "bt", paste0("VAST_ddc_all_", year, ".csv")))  # density dependence corrected
+ddc_cpue <- read.csv(here("data", "bt", paste0("VAST_ddc_EBSonly_", year, ".csv")))  # density dependence corrected
 
 ddc_cpue_out <- ddc_cpue %>%
   left_join(hauls, by = "hauljoin") %>%

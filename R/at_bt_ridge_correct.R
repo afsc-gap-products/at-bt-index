@@ -39,14 +39,14 @@ if (!requireNamespace("ggsidekick", quietly = TRUE)) {
 library(ggsidekick)
 theme_set(theme_sleek())
 
-results_dir <- here("Results", "non DDC")
+results_dir <- here("Results", "base")
 if (!dir.exists(results_dir)) {
   dir.create(results_dir, recursive = TRUE)
 }
 
 # Read in data and set up model inputs ----------------------------------------
 year <- 2025
-dat <- read.csv(here("data", year, "dat_all_noddc.csv")) %>%
+dat <- read.csv(here("data", year, "dat_all.csv")) %>%
   filter(Year <= 2018)
 
 # # Thin AVO3 samples
