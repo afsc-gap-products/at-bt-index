@@ -7,10 +7,10 @@ library(purrr)
 library(readxl)
 
 # Loop through files & pull them into R for processing 
-yrs <- c(2007:2010, 2012, 2014, 2016, 2018)
+yrs <- c(2007:2010, 2012, 2014, 2016, 2018, 2022, 2024)
 
 read_folder <- function(yr) {
-  print(yr)
+  print(paste0("Starting ", yr))
   files <- list.files(path = here("data", "at", yr), 
                       pattern = "\\.xlsx$", full.names = TRUE)
   

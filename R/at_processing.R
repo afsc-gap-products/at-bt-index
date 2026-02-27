@@ -1,6 +1,8 @@
 #' Script for conducting initial data manipulation steps to get to binned 
 #' acoustic data at-depth. These steps are taken from code written by Cole
 #' Monnahan.
+#' 
+#' TODO: Rin at_read_combine.R before running this script.
 
 library(here)
 library(dplyr)
