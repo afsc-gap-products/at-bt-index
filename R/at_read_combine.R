@@ -63,8 +63,7 @@ saveRDS(dat, file = here("data", "at", "at_combined.rds"))
 # -----------------------------------------------------------------------------
 ## Now everything <3m comes from a difference source
 
-## These have different column names and aren't consistent so just reading
-## them in manually
+## These have different column names and aren't consistent so just reading them in manually
 x2007 <- cbind(year=2007, data.frame(read_excel(here("data", "at", "Below3m", "Results_below_3_m2007.xlsx")))[,1:6])
 x2008 <- cbind(year=2008, data.frame(read_excel(here("data", "at", "Below3m", "Results_below_3_m2008.xlsx")))[,1:6])
 x2009 <- cbind(year=2009, data.frame(read_excel(here("data", "at", "Below3m", "Results_below_3_m2009.xlsx")))[,1:6])
@@ -73,20 +72,30 @@ x2012 <- cbind(year=2012, data.frame(read_excel(here("data", "at", "Below3m", "R
 x2014 <- cbind(year=2014, data.frame(read_excel(here("data", "at", "Below3m", "Results_below_3_m2014.xlsx")))[,1:6])
 x2016 <- cbind(year=2016, data.frame(read_excel(here("data", "at", "Below3m", "Results_below_3_m2016.xlsx")))[,1:6])
 x2018 <- cbind(year=2018, data.frame(read_excel(here("data", "at", "Below3m", "Results_below_3_m2018.xlsx")))[,1:6])
+x2022 <- cbind(year=2022, data.frame(read_excel(here("data", "at", "Below3m", "Results_below_3_m2022.xlsx"))))
+x2024 <- cbind(year=2024, data.frame(read_excel(here("data", "at", "Below3m", "Results_below_3_m2024.xlsx"))))
 
-## Process this below3 data a bit. The files are not the same so
-## **** BE VERY CAREFUL IF THESE CHANGE ****
-### From Nate: you can assume 10 nm^2 before 2016.  There were
-### some variety from 10 in 2016 & 2018, and I think that's why I
-### explicitly made a column for area.
+#' Process this below3 data a bit. The files are not the same so 
+#' ** BE VERY CAREFUL IF THESE CHANGE **
+#' From Nate: you can assume 10 nm^2 before 2016.  There were some variety from 
+#' 10 in 2016 & 2018, and I think that's why I explicitly made a column for area.
 warning("!! below3 files are handled specially, if changed you must update the code !!")
 
-x1 <- rbind(x2007, x2008, x2009, x2010, x2012, x2014)
-names(x1)  <-  c('year', 'vessel', 'NASC', 'biomass', 'numbers', 'lat', 'lon')
-x1$area <- 10; x1$vessel <- NULL
-names(x2016) <- names(x2018)  <-
-  c('year', 'NASC', 'biomass', 'numbers', 'lat', 'lon', 'area')
-x2 <- rbind(x2016, x2018)
-below3 <- rbind(x1,x2)
+# Process first year block
+b3_1 <- bind_rows(x2007, x2008, x2009, x2010, x2012, x2014) %>%
+colnames(b3_1)  <-  c("year", "vessel", "NASC", "biomass", "numbers", "lat", "lon")
+b3_1$area <- 10
+b3_1 <- b3_1 %>% select(-vessel)
 
-saveRDS(below3, file = here("data", "at", "below3.rds"), row.names = FALSE)
+# Process second year block
+colnames(x2016) <- colnames(x2018) <- c("year", "NASC", "biomass", "numbers", "lat", "lon", "area")
+b3_2 <- bind_rows(x2016, x2018)
+
+# Process third year block
+b3_3 <- bind_rows(x2022, x2024)[, c(1:6, 9)]
+colnames(b3_3) <- c("year", "NASC", "biomass", "numbers", "lat", "lon", "biomass_area")
+b3_3 <- b3_3 %>%
+  mutate(area = biomass / biomass_area) %>%
+  select(- biomass_area)
+
+saveRDS(bind_rows(b3_1, b3_2, b3_3), file = here("data", "at", "below3.rds"))

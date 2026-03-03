@@ -2,7 +2,7 @@
 #' acoustic data at-depth. These steps are taken from code written by Cole
 #' Monnahan.
 #' 
-#' TODO: Rin at_read_combine.R before running this script.
+#' TODO: Run at_read_combine.R before running this script.
 
 library(here)
 library(dplyr)
@@ -24,13 +24,12 @@ wd <- here("data", "at")
 # Read in data, which was combined & cleaned in at_read_combine.R
 dat <- readRDS(here(wd, "at_combined.rds"))
 
-## whether to use 0.5-3m from the other data set and add this onto the 3-b2 stratum so it goes from 0.5-b2.
+# whether to use 0.5-3m from the other data set and add this onto the 3-b2 stratum so it goes from 0.5-b2.
 strata <- 3
-b1 <- 3 ## !!do not change!!, this is **NOT** the lower
-## breakpoint it has to do with the split AT data sets
+b1 <- 3 # !!do not change!!, this is **NOT** the lower breakpoint it has to do with the split AT data sets
 b2 <- 16  # SNW: higher breakpoint?
 
-## This is only tested for these two values but theoretically should work as long as b2>=0.
+# This is only tested for these two values but theoretically should work as long as b2>=0.
 stopifnot(b2 %in% c(3, 16))
 stopifnot(b1 == 3)
 
@@ -64,20 +63,20 @@ d3 <- group_by(d2, key) %>% summarize(year = year[1],
                                       top = top[1], 
                                       duration = duration[1],
                                       density = sum(density))
-## just check that the longs are the same then delete it
+# just check that the longitudes are the same then delete it
 sum(d3$lon != d3$lon2)
 d3$lon2 <- NULL
-## Now recombine together and check no density was lost
+# Now recombine together and check no density was lost
 datnew <- bind_rows(d1, d3)
 stopifnot(abs(sum(datnew$density) - sum(dat$density)) < 1e-8)
-## should now be no duplicated keys and we can drop the depth layer from the key
+# should now be no duplicated keys and we can drop the depth layer from the key
 stopifnot(sum(duplicated(datnew$key)) == 0)
 dat <- datnew
-rm(d1,d2,d3, datnew, tmp, dups, dups.freq); gc()
+rm(d1, d2, d3, datnew, tmp, dups, dups.freq); gc()
 
-## Create the vertical strata used in model by summing across layers.
+# Create the vertical strata used in model by summing across layers.
 b <- dat$bottom; t <- dat$top
-## with(dat, plot(bottom, top-bottom))
+#  with(dat, plot(bottom, top-bottom))
 stratum <- rep(NA, len = nrow(dat))
 #' 0-3m; note this is unused b/c below we use the below3 data set. But it is 
 #' used for some tows that are off the shelf where these would then be reliable 
@@ -86,7 +85,7 @@ stratum[b >= 0 & t <= b1] <- "stratum1"  # 0-3m (unreliable and unused)
 stratum[b >= b1 & t <= b2] <- "stratum2" # 3-EFHm
 stratum[b >= b2] <- "stratum3" # EFH-surface
 dat$stratum <- stratum
-## None of these are important, not sure why negative but they don't have pollock so doesn't matter.
+# None of these are important, not sure why negative but they don't have pollock so doesn't matter.
 # write.csv(filter(dat, is.na(stratum)), file='bad_strata.csv')
 stopifnot(0 == mean(is.na(stratum) & dat$density > 0))
 dat <- filter(dat, !(is.na(stratum))) ## drop the zero densities
@@ -118,25 +117,24 @@ out <- group_by(dat, key3, stratum, pollock) %>%
             ground = ground[1],  
             bottom = bottom[1],
             density = sum(density))
-## These arent consistent so I will need to fill in zeroes.
+# These aren't consistent so I will need to fill in zeroes.
 table(out$stratum)
 
-## All possible combinations of each stratum for each location have zero
-## density.
+# All possible combinations of each stratum for each location have zero density.
 zeroes <- expand.grid(key4 = unique(out$key3), 
                       stratum = unique(out$stratum),
                       pollock = c(TRUE, FALSE), 
                       density2 = 0) 
 zeroes$key4 <- with(zeroes, paste(key4, stratum, pollock, sep = "_"))
 out$key4 <- with(out, paste(key3, stratum, pollock, sep = "_"))
-## Merge the real densities into the one populated by zeroes, This is a left join.
+# Merge the real densities into the one populated by zeroes, This is a left join.
 tmp <- merge(out[, c("key4", "density")], zeroes, by = "key4", all.y = TRUE)
-## Missing values in the real data are now density=NA
+# Missing values in the real data are now density=NA
 stopifnot(nrow(zeroes) - nrow(out) == sum(is.na(tmp$density)))
-## Replace NA's with zeroes
+# Replace NA's with zeroes
 tmp$density[is.na(tmp$density)] <- 0
 tmp$density2 <- NULL
-## check we didn't lose any biomass
+# check we didn't lose any biomass
 stopifnot(isTRUE(all.equal(sum(tmp$density), sum(dat$density))))
 #' Now tmp has a density for all combinations of strata and locations and 
 #' pollock non pollock. We need to merge the location meta data into the new 
@@ -145,32 +143,32 @@ meta <- out[!duplicated(out$key3), c("key3", "year", "lon", "lat",
                                      "dist", "surface", "ground")]
 tmp$key3 <- plyr::ldply(strsplit(tmp$key4, split = "_s"), function(x) x[[1]])[, 1]
 dat2 <- merge(meta, tmp, by = "key3") %>%
-  ## Can finally drop the non-pollock stuff
+  # Can finally drop the non-pollock stuff
   filter(pollock == TRUE) %>% select(-pollock, -key4)
-## consistent now since backfilled with zeroes
+##consistent now since backfilled with zeroes
 x <- as.numeric(table(dat2$stratum))
 stopifnot(isTRUE(all.equal(x[1], x[2], x[3])))
-## Check we didn't lose any pollock density
+# Check we didn't lose any pollock density
 stopifnot(isTRUE(all.equal(sum(dat2$density), sum(dat$density[dat$pollock]))))
 rm(tmp, zeroes, x); gc()
 
-## Now can deal with issue on the shelf. First make each stratum its own column
+# Now can deal with issue on the shelf. First make each stratum its own column
 s1 <- subset(dat2, surface > 450 & stratum == "stratum1")
 s2 <- subset(dat2, surface > 450 & stratum == "stratum2")
 s3 <- subset(dat2, surface > 450 & stratum == "stratum3")
-## All measured density assumed to be in the top stratum
+# All measured density assumed to be in the top stratum
 if(b2 == 3) {
-  ## There is no s2 in this case because s2 represents biomass in 3-3m.
+  # There is no s2 in this case because s2 represents biomass in 3-3m.
   s3$density <- s1$density + s3$density
   s1$density <- 0
 } else {
   s3$density <- s1$density + s2$density + s3$density
-  ## so the other two are 0
+  # so the other two are 0
   s1$density <- s2$density <- 0
 }
-## Now bind them back together
+# Now bind them back together
 dat3 <- rbind(subset(dat2, surface <= 450), s1, s2, s3)
-## should not have lost anything
+# should not have lost anything
 stopifnot(nrow(dat2) == nrow(dat3))
 stopifnot(sum(dat2$density) == sum(dat3$density))
 rm(out, dat, dat2, meta, s3, s2, s1); gc()
@@ -178,18 +176,18 @@ rm(out, dat, dat2, meta, s3, s2, s1); gc()
 #' now dat3 is the final data set once we drop the first stratum (0-3m) since 
 #' that is added from a separate source below
 above3 <- droplevels(filter(dat3, stratum != "stratum1")) %>%
-  ## Add column for merging with below3 data below
+  # Add column for merging with below3 data below
   mutate(key = paste(year, round(lat, 3), round(lon, 3))) %>%
-  ## Melt it to have stratum as columns. We then will add stratum1 below
+  # Melt it to have stratum as columns. We then will add stratum1 below
   spread(stratum, density)
-## again if b2==3 this fixes errors
+# again if b2==3 this fixes errors
 if(is.null(above3$stratum2)) above3$stratum2 <- 0
 rm(dat3); gc()
 write.csv(above3, file = here(wd, "processing", "above3.csv"), row.names = FALSE)
 
 #' This is the end of processing the raw acoustic data. This only reliably goes 
 #' to 3m so stratum1 is not reliable. Instead, Nate provided a separate dataset 
-#' which comes from his paper. so I replace stratum1 with this data
+#' which comes from his paper. so I replace stratum1 with this data.
 
 # SNW: load in data and continue with processing ------------------------------
 if(exists("above3") == FALSE) {
@@ -225,15 +223,16 @@ g <- missing_in_below3 %>%
   ggplot(aes(lon, lat)) +
   facet_wrap("year") + 
   geom_point()
+g
 ggsave(here(wd, "processing", "below3_missing_map.png"), g, width = 7, height = 6)
 message(paste("Combining above3 and below3.."))
 message(paste(nrow(missing_in_above3), " rows missing in above3"))
 message(paste(nrow(missing_in_below3), " rows missing in below3"))
 #' Nate says regarding mismatch in coordinates: This was something with rounding 
 #' errors when re-exporting using our Echoview software, probably due to a newer 
-#' version.  This changed the lat/lon values up to 3-4 decimal places. We 
-#' decided to simply drop those that don't match since it's a small fraction 
-#' (Except for those outside the EBS) and they are randomly distributed.
+#' version. This changed the lat/lon values up to 3-4 decimal places. We decided 
+#' to simply drop those that don't match since it's a small fraction (Except for 
+#' those outside the EBS) and they are randomly distributed.
 message("Dropping observations with coordinate mismatch")
 ats.wide <- filter(ats.wide, !is.na(stratum1) & !is.na(stratum2) & !is.na(stratum3))
 # rm(x2007, x2008, x2009, x2010, x2012, x2014, x2016, x2018)
@@ -250,6 +249,7 @@ g <- ats.wide %>%
   facet_wrap("year") + 
   geom_jitter(width = .1, height = .1, size = .5, alpha = .15) +
   scale_color_viridis(option = "magma")
+g
 ggsave(here(wd, "processing", "below3_density_map.png"), g, width = 10, height = 7)
 
 # Stratum1 gets added below when creating the final densities
@@ -291,7 +291,7 @@ ats.wide %>%
   hist(breaks = 250) #ecdf() %>% plot()
 ats.wide <- ats.wide %>% ungroup()
 dev.off()
-## There are some weird heights and durations... drop these?
+# There are some weird heights and durations... drop these?
 write.csv(file = here(wd, "processing", "weird_heights.csv"), 
           ats.wide[which(ats.wide$bottom < 0), ])
 write.csv(file = here(wd, "processing", "big_heights.csv"), 
@@ -302,6 +302,7 @@ g <- ggplot(ats.wide, aes(log(surface))) +
   geom_histogram(bins = 100) +
   geom_vline(xintercept = log(450)) + 
   xlab("log surface height")
+g
 ggsave(here(wd, "processing", "surface_heights.png"), g, width = 12, height = 6, dpi = 500)
 write.csv(ats.wide[which(ats.wide$surface < 16), ], 
           file = here(wd, "processing", "shallow_spots.csv"))
@@ -312,10 +313,10 @@ message(paste("number of rows after:", nrow(ats.wide)))
 # SNW: Save the data with three separate strata (0.5 - 3m, 3m - 16m, >16m)
 saveRDS(ats.wide, here(wd, "at_3strata.rds"))
 
-## If using <3m add the below3 density to stratum2
+# If using <3m add the below3 density to stratum2
 message("Converting density to kg/km^2 and calculating AT2 & AT3 ...")
 
-## Convert to kg/km^2 from kg/nm^2
+# Convert to kg/km^2 from kg/nm^2
 if(strata == 2) {
   message("Combining strata 1 (0.5-3m) and 2 (3-16m)")
   ats.wide$strata2 <- (ats.wide$stratum1 + ats.wide$stratum2) / 1.852^2
@@ -335,8 +336,8 @@ if(b2 == 3) {
   write.csv(ats.wide, file = here(wd, "processing", "ats_full_16.csv"), row.names = FALSE)
 }
 
-## Now do the subsampling of data by averaging over multiple intervals to reduce the data set size
-ats.wide$transect <- stringr::str_split(ats.wide$key3, "_",
+# Now do the subsampling of data by averaging over multiple intervals to reduce the data set size
+ats.wide$transect <- stringr::str_split(ats.wide$key3, "_", 
                                         simplify = TRUE)[,2] %>% 
   as.numeric()
 idist.fn <- function(lat, lon){
@@ -359,7 +360,7 @@ idist.fn <- function(lat, lon){
 #' transect broken into pieces within each one there are no big gaps.
 tmp3 <- ats.wide  %>% 
   group_by(year, transect) %>%
-  ## Break transects apart if too big of gaps
+  # Break transects apart if too big of gaps
   mutate(idist = idist.fn(lat, lon),
          transect2 = transect + .1 * cumsum(idist > 1),
          tadd = .1 * cumsum(idist > 1)) %>% 
@@ -372,7 +373,7 @@ tmp3 <- ats.wide  %>%
   mutate(igroup = cumsum(1:n() %% 20 == 0)) %>% 
   ungroup() %>%
   mutate(igroup = fct_shuffle(factor(igroup))) # shuffle for plotting
-## Now for each set of points take averages
+# Now for each set of points take averages
 ats.wide2 <- tmp3 %>%
   group_by(year, transect2, igroup) %>%
   summarize(ni = n(), 
@@ -385,7 +386,7 @@ ats.wide2 <- tmp3 %>%
             surface = mean(surface),
             ground = mean(ground)) %>% 
   ungroup()
-## ni is the number of points in each average, should be 20 but sometimes fewer and we filter below
+# ni is the number of points in each average, should be 20 but sometimes fewer and we filter below
 
 stopifnot(all.equal(sum(ats.wide2$ni), nrow(tmp3)))
 message("Filtering out interval sets with fewer than 5 intervals")
@@ -419,7 +420,7 @@ dev.off()
 # ggsave('subset_50.png', g, width=7, height=4, dpi=800)
 
 
-## Melt it for some exploratory ggploting
+# Melt it for some exploratory ggploting
 message("Making exploratory plots...")
 ats.long <- ats.wide2 %>% 
   gather(key = strata, value = density, strata1, strata2, strata3) %>% 
@@ -429,11 +430,12 @@ ats.long$strata <- fct_recode(ats.long$strata,
                               "3-16m" = "strata2", 
                               "16+" = "strata3")
 
-## Does this match the original data??
+# Does this match the original data??
 g <- ats.long %>%
   ggplot(aes(lon, lat)) + 
   geom_point(size = .2, alpha = .5) + 
   facet_wrap("year")
+g
 ggsave(here(wd, "processing", "processed_sampling_locations.png"), g, width = 9, height = 6)
 
 
@@ -445,15 +447,18 @@ g <- ats.long %>%
   ggplot(aes(year, value, color = strata)) + 
   geom_line() +
   facet_wrap("variable", scales = "free")
+g
 ggsave(here(wd, "processing", "zeores_by_year.png"), g, width = 7, height = 6, dpi = 500)
 
 g <- ggplot(subset(ats.long, density > 0), aes(log(density), fill = strata)) +
   geom_histogram(bins = 50, position = "identity", alpha = .5) +
   facet_wrap("year", scales = "free_y") 
+g
 ggsave(here(wd, "processing", "density_hist_annual.png"), g, width = 9, height = 6, dpi = 500)
 
 g <- ggplot(subset(ats.long, density > 0), aes(log(density), fill = strata)) +
   geom_histogram(bins = 50, position = "identity", alpha = .5) 
+g
 ggsave(here(wd, "processing", "density_hist.png"), g, width = 7, height = 3.5, dpi = 500)
 
 jit <- .2
@@ -461,11 +466,13 @@ g <- ggplot(subset(ats.long, density>0), aes(lon, lat, color=log(density))) +
   geom_jitter(width = jit, height = jit, alpha = .5, size = .5) + 
   facet_grid(strata ~ year) +
   scale_color_viridis_c()
+g
 ggsave(here(wd, "processing", "density_map.png"), g, width = 15, height = 7, dpi = 500)
        
 g <- ggplot(subset(ats.long, density == 0), aes(lon, lat)) +
   geom_jitter(width = jit, height = jit, alpha = .25, size = .2) + 
   facet_grid(strata ~ year)
+g
 ggsave(here(wd, "processing", "zeroes_map.png"), g, width = 15, height = 7, dpi = 500)
 
 g <- arrange(ats.long, desc(surface)) %>% 
@@ -473,6 +480,7 @@ g <- arrange(ats.long, desc(surface)) %>%
   ggplot(aes(lon, lat, size = surface < 50, color = surface < 50)) +
   geom_point(alpha = .25) + 
   facet_wrap("year")
+g
 ggsave(here(wd, "processing", "shallow_map.png"), g, width = 12, height = 6, dpi = 500)
 
 g <- arrange(ats.long, surface) %>% 
@@ -480,6 +488,7 @@ g <- arrange(ats.long, surface) %>%
   ggplot(aes(lon, lat, size = surface > 300,  color = surface > 300)) +
   geom_point(alpha = .25) + 
   facet_wrap("year") 
+g
 ggsave(here(wd, "processing", "deep_map.png"), g, width = 12, height = 6, dpi = 500)
 
 # Write final version of the data
