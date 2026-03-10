@@ -37,7 +37,8 @@ dat0 <- df %>% mutate(
   ## Classify the class as pollock or not. First strip out some random quotation marks in the class names
   class = gsub('\"',  "", x = class),
   ## There are some in FSHGRP_2 but Nate says to ignore them
-  pollock = class %in% c('PK1', 'PK2', "PK3", "PK1_FILTERED"),
+  pollock = class %in% c('PK1', 'PK2', "PK3", "PK1_FILTERED", 
+                         "SS1", "SS2", "SS1_FILTERED"),
   duration = as.numeric(end_time - start_time, 'mins'),
   ## Now we should have a unique key with this combination
   key = paste(year, interval, class, as.numeric(factor(paste0(bottom, "-", top))), sep = '_'),
@@ -82,7 +83,7 @@ x2024 <- cbind(year=2024, data.frame(read_excel(here("data", "at", "Below3m", "R
 warning("!! below3 files are handled specially, if changed you must update the code !!")
 
 # Process first year block
-b3_1 <- bind_rows(x2007, x2008, x2009, x2010, x2012, x2014) %>%
+b3_1 <- bind_rows(x2007, x2008, x2009, x2010, x2012, x2014)
 colnames(b3_1)  <-  c("year", "vessel", "NASC", "biomass", "numbers", "lat", "lon")
 b3_1$area <- 10
 b3_1 <- b3_1 %>% select(-vessel)
