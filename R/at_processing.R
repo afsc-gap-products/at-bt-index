@@ -461,13 +461,24 @@ g <- ggplot(subset(ats.long, density > 0), aes(log(density), fill = strata)) +
 g
 ggsave(here(wd, "processing", "density_hist.png"), g, width = 7, height = 3.5, dpi = 500)
 
-jit <- .2
-g <- ggplot(subset(ats.long, density>0), aes(lon, lat, color=log(density))) +
-  geom_jitter(width = jit, height = jit, alpha = .5, size = .5) + 
+library(sf)
+ats_sf <- st_as_sf(ats.long %>% filter(density > 0), coords = c("lon", "lat"), crs = 4326)
+ggplot() +
+  geom_sf(data = ats_sf, aes(color = log(density)), shape = 15) +
   facet_grid(strata ~ year) +
   scale_color_viridis_c()
-g
-ggsave(here(wd, "processing", "density_map.png"), g, width = 15, height = 7, dpi = 500)
+ggsave(here(wd, "processing", "density_map.png"), width = 15, height = 7, dpi = 500)
+
+ats.long2 <- ats.long %>%
+  group_by(lat, lon, year) %>%
+  summarize(density = sum(density)) %>%
+  filter(density > 0)
+ats.long2 <- st_as_sf(ats.long2, coords = c("lon", "lat"), crs = 4326)
+ggplot() +
+  geom_sf(data = ats.long2, aes(color = density), shape = 15) +
+  scale_color_viridis(limits = c(0, NA)) +
+  facet_wrap(~ year)
+ggsave(here(wd, "processing", "density_overall.png"), width = 15, height = 7, dpi = 500)
        
 g <- ggplot(subset(ats.long, density == 0), aes(lon, lat)) +
   geom_jitter(width = jit, height = jit, alpha = .25, size = .2) + 
