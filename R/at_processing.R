@@ -419,7 +419,6 @@ dev.off()
 #   labs(x='Longitude', y='Latitude')
 # ggsave('subset_50.png', g, width=7, height=4, dpi=800)
 
-
 # Melt it for some exploratory ggploting
 message("Making exploratory plots...")
 ats.long <- ats.wide2 %>% 
@@ -450,41 +449,41 @@ g <- ats.long %>%
 g
 ggsave(here(wd, "processing", "zeores_by_year.png"), g, width = 7, height = 6, dpi = 500)
 
-g <- ggplot(subset(ats.long, density > 0), aes(log(density), fill = strata)) +
+ggplot(subset(ats.long, density > 0), aes(log(density), fill = strata)) +
   geom_histogram(bins = 50, position = "identity", alpha = .5) +
   facet_wrap("year", scales = "free_y") 
-g
-ggsave(here(wd, "processing", "density_hist_annual.png"), g, width = 9, height = 6, dpi = 500)
+ggsave(here(wd, "processing", "density_hist_annual.png"), width = 9, height = 6, dpi = 500)
 
-g <- ggplot(subset(ats.long, density > 0), aes(log(density), fill = strata)) +
+ggplot(subset(ats.long, density > 0), aes(log(density), fill = strata)) +
   geom_histogram(bins = 50, position = "identity", alpha = .5) 
-g
-ggsave(here(wd, "processing", "density_hist.png"), g, width = 7, height = 3.5, dpi = 500)
+ggsave(here(wd, "processing", "density_hist.png"), width = 7, height = 3.5, dpi = 500)
 
 library(sf)
-ats_sf <- st_as_sf(ats.long %>% filter(density > 0), coords = c("lon", "lat"), crs = 4326)
-ggplot() +
-  geom_sf(data = ats_sf, aes(color = log(density)), shape = 15) +
+g <- st_as_sf(ats.long %>% filter(density > 0), 
+                   coords = c("lon", "lat"), crs = 4326) %>%
+  ggplot(.) +
+  geom_sf(aes(color = log(density)), shape = 15) +
   facet_grid(strata ~ year) +
   scale_color_viridis_c()
-ggsave(here(wd, "processing", "density_map.png"), width = 15, height = 7, dpi = 500)
+g
+ggsave(here(wd, "processing", "density_map.png"), g, width = 15, height = 7, dpi = 500)
 
-ats.long2 <- ats.long %>%
+g <- ats.long %>%
   group_by(lat, lon, year) %>%
   summarize(density = sum(density)) %>%
-  filter(density > 0)
-ats.long2 <- st_as_sf(ats.long2, coords = c("lon", "lat"), crs = 4326)
-ggplot() +
-  geom_sf(data = ats.long2, aes(color = density), shape = 15) +
+  filter(density > 0) %>%
+  st_as_sf(coords = c("lon", "lat"), crs = 4326) %>%
+  ggplot(.) +
+  geom_sf(aes(color = density), shape = 15) +
   scale_color_viridis(limits = c(0, NA)) +
   facet_wrap(~ year)
-ggsave(here(wd, "processing", "density_overall.png"), width = 15, height = 7, dpi = 500)
+g
+ggsave(here(wd, "processing", "density_overall.png"), g, width = 15, height = 7, dpi = 500)
        
-g <- ggplot(subset(ats.long, density == 0), aes(lon, lat)) +
+ggplot(subset(ats.long, density == 0), aes(lon, lat)) +
   geom_jitter(width = jit, height = jit, alpha = .25, size = .2) + 
   facet_grid(strata ~ year)
-g
-ggsave(here(wd, "processing", "zeroes_map.png"), g, width = 15, height = 7, dpi = 500)
+ggsave(here(wd, "processing", "zeroes_map.png"), width = 15, height = 7, dpi = 500)
 
 g <- arrange(ats.long, desc(surface)) %>% 
   filter(strata == "16+") %>%
