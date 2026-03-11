@@ -39,13 +39,13 @@ if (!requireNamespace("ggsidekick", quietly = TRUE)) {
 library(ggsidekick)
 theme_set(theme_sleek())
 
-results_dir <- here("Results", "base")
+results_dir <- here("Results", "new_at_years")
 if (!dir.exists(results_dir)) {
   dir.create(results_dir, recursive = TRUE)
 }
 
 # Read in data and set up model inputs ----------------------------------------
-year <- 2025
+year <- 2025  # static for now (but set up for updating annually)
 dat <- read.csv(here("data", year, "dat_all.csv")) %>%
   filter(Year <= 2018)
 

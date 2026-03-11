@@ -1,4 +1,4 @@
-#' STEP 4: Combine AT, BT, and AVO data into a single file.
+# Combine AT, BT, and AVO data into a single file.
 
 library(here)
 library(dplyr)
@@ -8,13 +8,13 @@ library(ggplot2)
 year <- 2025
 
 # Read in and combine ---------------------------------------------------------
-at <- read.csv(here("data", "at", "ats_16.csv"))
+at <- read.csv(here("data", "at", "ats_16.csv"))  # made in at_processing.R
 bt <- read.csv(here("data", year, "bt_processed_onlyEBS.csv"))  # made in bt_processing.R
 avo <- read.csv(here("data", year, "avo_binned.csv"))  # made in avo_processing.R
 
 # Reconfigure AT dataframe to match BT and AVO dataframes
 at_new <- at %>%
-  select(-surface, -X) %>%
+  select(-surface) %>%
   rename(AT1 = strata1, AT2 = strata2, AT3 = strata3) %>%
   reshape2::melt(id.vars = c("lat", "lon", "year"), 
                  variable.name = "Gear", 
