@@ -479,6 +479,18 @@ g <- ats.long %>%
   facet_wrap(~ year)
 g
 ggsave(here(wd, "processing", "density_overall.png"), g, width = 15, height = 7, dpi = 500)
+
+g <- ats.long %>%
+  group_by(lat, lon, year) %>%
+  summarize(density = sum(density)) %>%
+  filter(density > 0) %>%
+  st_as_sf(coords = c("lon", "lat"), crs = 4326) %>%
+  ggplot(.) +
+  geom_sf(aes(color = log(density)), shape = 15) +
+  scale_color_viridis() +
+  facet_wrap(~ year)
+g
+ggsave(here(wd, "processing", "density_overall_log.png"), g, width = 15, height = 7, dpi = 500)
        
 ggplot(subset(ats.long, density == 0), aes(lon, lat)) +
   geom_jitter(width = jit, height = jit, alpha = .25, size = .2) + 
