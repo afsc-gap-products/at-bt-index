@@ -60,7 +60,7 @@ avo_processed <- avo_processed %>%
 # Convert AVO points to sf
 avo_sf <- st_as_sf(avo_processed, coords = c("longitude", "latitude"), crs = 4326)
 
-world <- ne_countries(scale = "medium", returnclass = "sf")
+world <- rnaturalearth::ne_countries(scale = "medium", returnclass = "sf")
 sf_use_s2(FALSE)  # turn off spherical geometry
 avo_depth <- ggplot(avo_sf) +
   geom_sf(data = world) +

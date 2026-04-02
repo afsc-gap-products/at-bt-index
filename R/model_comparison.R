@@ -7,7 +7,7 @@ library(viridis)
 
 # Set ggplot theme
 if (!requireNamespace("ggsidekick", quietly = TRUE)) {
-  devtools::install_github("seananderson/ggsidekick")
+  pak::pkg_install("seananderson/ggsidekick")
 }
 library(ggsidekick)
 theme_set(theme_sleek())

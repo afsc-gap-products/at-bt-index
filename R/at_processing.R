@@ -13,7 +13,7 @@ library(forcats)
 
 # Set ggplot theme
 if (!requireNamespace("ggsidekick", quietly = TRUE)) {
-  devtools::install_github("seananderson/ggsidekick")
+  pak::pkg_install("seananderson/ggsidekick")
 }
 library(ggsidekick)
 theme_set(theme_sleek())
@@ -76,7 +76,7 @@ rm(d1, d2, d3, datnew, tmp, dups, dups.freq); gc()
 
 # Create the vertical strata used in model by summing across layers.
 b <- dat$bottom; t <- dat$top
-#  with(dat, plot(bottom, top-bottom))
+ # with(dat, plot(bottom, top-bottom))
 stratum <- rep(NA, len = nrow(dat))
 #' 0-3m; note this is unused b/c below we use the below3 data set. But it is 
 #' used for some tows that are off the shelf where these would then be reliable 
@@ -425,10 +425,10 @@ message("Making exploratory plots...")
 ats.long <- ats.wide2 %>% 
   gather(key = strata, value = density, strata1, strata2, strata3) %>% 
   mutate(strata = factor(strata))
-ats.long$strata <- fct_recode(ats.long$strata, 
-                              "0.5-3m" = "strata1",
-                              "3-16m" = "strata2", 
-                              "16+" = "strata3")
+ats.long$strata <- forcats::fct_recode(ats.long$strata, 
+                                       "0.5-3m" = "strata1",
+                                       "3-16m" = "strata2", 
+                                       "16+" = "strata3")
 
 # Does this match the original data??
 g <- ats.long %>%

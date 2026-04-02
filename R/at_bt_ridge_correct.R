@@ -29,12 +29,12 @@ library(reshape2)
 library(tidyr)
 
 if (!requireNamespace("akgfmaps", quietly = TRUE)) {
-  install_github("afsc-gap-products/akgfmaps", build_vignettes = TRUE)
+  pak::pkg_install("afsc-gap-products/akgfmaps")
 }
 
 # Set ggplot theme
 if (!requireNamespace("ggsidekick", quietly = TRUE)) {
-  devtools::install_github("seananderson/ggsidekick")
+  pak::pkg_install("seananderson/ggsidekick")
 }
 library(ggsidekick)
 theme_set(theme_sleek())

@@ -12,7 +12,7 @@ library(rnaturalearth)
 
 # Set ggplot theme
 if (!requireNamespace("ggsidekick", quietly = TRUE)) {
-  devtools::install_github("seananderson/ggsidekick")
+  pak::pkg_install("seananderson/ggsidekick")
 }
 library(ggsidekick)
 theme_set(theme_sleek())
@@ -99,7 +99,7 @@ AVO3_prop <- AVO3 %>%
 
 # Set up maping & plot --------------------------------------------------------
 if(plotting == TRUE) {
-  world <- ne_countries(scale = "medium", returnclass = "sf")
+  world <- rnaturalearth::ne_countries(scale = "medium", returnclass = "sf")
   sf_use_s2(FALSE)  # turn off spherical geometry
   
   avo_prop <- ggplot(data = world) +
