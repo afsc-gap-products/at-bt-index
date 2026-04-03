@@ -46,8 +46,7 @@ if (!dir.exists(results_dir)) {
 
 # Read in data and set up model inputs ----------------------------------------
 year <- 2025  # static for now (but set up for updating annually)
-dat <- read.csv(here("data", year, "dat_all.csv")) %>%
-  filter(Year <= 2018)
+dat <- read.csv(here("data", year, "dat_all.csv")) 
 
 # # Thin AVO3 samples
 # which_AVO3 <- which(dat$Gear == "AVO3")
@@ -426,7 +425,7 @@ prop_at_gt <- D_at_gt / apply(Dhat_gct, c(1,3), sum)    # AT proportion
 D_gzt_prop <- array(NA, dim = c(nrow(D_bt_gt), 2, ncol(D_bt_gt)))
 D_gzt_prop[, 1, ] <- prop_bt_gt
 D_gzt_prop[, 2, ] <- prop_at_gt
-plot_spatial_data(grid, D_gzt_prop, year_set, c("BT_prop", "AT_prop"), "Proportion", log_transform = FALSE)
+plot_spatial_data(grid, D_gzt_prop, year_set, c("BT", "AT"), "Proportion", log_transform = FALSE)
 
 # Time series of proportion available by survey -------------------------------
 # Intercepts and data availability
@@ -450,14 +449,14 @@ avail_gear <- rbind(
 write.csv(avail_gear, here(results_dir, "availability_gear.csv"), row.names = FALSE)
 
 # Get years where there was a survey
-at_years <- c(2007:2010, 2012, 2014, 2016, 2018)
-bt_years <- unique(dat[Gear == "BT", ]$Year)
+at_years <- unique(dat[dat$Gear == "AT1", ]$Year)
+bt_years <- unique(dat[dat$Gear == "BT", ]$Year)
 
 survey_yr_points <- avail_gear %>% 
   filter((Gear == "AT" & Year %in% at_years) | 
            (Gear == "BT" & Year %in% bt_years))
 survey_yr_points <- rbind.data.frame(survey_yr_points,
-                                     cbind.data.frame(Year = unique(dat[Gear == "AVO2", ]$Year),
+                                     cbind.data.frame(Year = unique(dat[dat$Gear == "AVO2", ]$Year),
                                                       Proportion = 0,
                                                       SD = 0,
                                                       Gear = "AVO")) %>%
