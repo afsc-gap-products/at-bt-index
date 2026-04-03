@@ -368,18 +368,11 @@ ggsave(combined_plot, file = here(results_dir, "pairwise_effects.png"),
 
 # Plot densities & spatiotemporal term ----------------------------------------
 plot_spatial_data <- function(grid, data_array, year_set, interval_labels, output_prefix, log_transform = TRUE) {
-  n_intervals <- dim(data_array)[2]  # [g, c_index, t]
+  n_intervals <- dim(data_array)[2]  # [g, c_index, t]  
   
   for(c_index in 1:n_intervals) {
     slice <- data_array[, c_index, , drop = FALSE]
-    
-    # Apply log + cutoff only if needed
-    if(log_transform && c_index %in% 1:2) {
-      slice <- log(slice)
-      cutoff <- max(slice, na.rm = TRUE) - log(1000)
-      slice[slice < cutoff] <- NA
-    }
-    
+
     # Convert to long data frame
     df <- as.data.frame(slice)
     colnames(df) <- year_set
@@ -393,6 +386,10 @@ plot_spatial_data <- function(grid, data_array, year_set, interval_labels, outpu
                    names_to = "year",
                    values_to = "value")
     
+    if(log_transform == TRUE) {
+      plotgrid_long$value <- log(plotgrid_long$value)
+    }
+
     ggplot(plotgrid_long) +
       geom_sf(aes(fill = value, color = value)) +
       scale_fill_viridis(na.value = NA) +
@@ -410,29 +407,26 @@ plot_spatial_data <- function(grid, data_array, year_set, interval_labels, outpu
 }
 
 interval_labels = c("0.5", "0.5-3", "3-16", "16")
-# Log density plot
+# Log density by depth interval
 plot_spatial_data(grid, Dhat_gct, year_set, interval_labels, "Densities", log_transform = TRUE)
-# Spatio-temporal term (eps) plots
+# Spatio-temporal term (eps) by depth interval
 plot_spatial_data(grid, epshat_gct, year_set, interval_labels, "eps", log_transform = FALSE)
 
-# Density/proportion by survey plots
-# Compute sums and proportions
+# Log density by survey 
 D_bt_gt <- apply(Dhat_gct[, 1:3, ], c(1,3), sum)        # BT
 D_at_gt <- apply(Dhat_gct[, 2:4, ], c(1,3), sum)        # AT
-prop_bt_gt <- D_bt_gt / apply(Dhat_gct, c(1,3), sum)    # BT proportion
-prop_at_gt <- D_at_gt / apply(Dhat_gct, c(1,3), sum)    # AT proportion
-
-# Combine into one array [g, c_index, t]
-D_gzt <- array(NA, dim = c(nrow(D_bt_gt), 4, ncol(D_bt_gt)))
+D_gzt <- array(NA, dim = c(nrow(D_bt_gt), 2, ncol(D_bt_gt)))  # Combine into one array [g, c_index, t]
 D_gzt[, 1, ] <- D_bt_gt
 D_gzt[, 2, ] <- D_at_gt
-D_gzt[, 3, ] <- prop_bt_gt
-D_gzt[, 4, ] <- prop_at_gt
+plot_spatial_data(grid, D_gzt, year_set, c("BT", "AT"), "Densities", log_transform = TRUE)
 
-types <- c("BT", "AT", "BTprop", "ATprop")  # labels
-
-# Call the function (apply log-transform only to the first two intervals (BT and AT))
-plot_spatial_data(grid, D_gzt, year_set, types, "Densities", log_transform = TRUE)
+# Proportion of density by survey
+prop_bt_gt <- D_bt_gt / apply(Dhat_gct, c(1,3), sum)    # BT proportion
+prop_at_gt <- D_at_gt / apply(Dhat_gct, c(1,3), sum)    # AT proportion
+D_gzt_prop <- array(NA, dim = c(nrow(D_bt_gt), 2, ncol(D_bt_gt)))
+D_gzt_prop[, 1, ] <- prop_bt_gt
+D_gzt_prop[, 2, ] <- prop_at_gt
+plot_spatial_data(grid, D_gzt_prop, year_set, c("BT_prop", "AT_prop"), "Proportion", log_transform = FALSE)
 
 # Time series of proportion available by survey -------------------------------
 # Intercepts and data availability
