@@ -2,6 +2,7 @@
 
 library(here)
 library(dplyr)
+library(tidyr)
 library(ggplot2)
 library(viridis)
 library(sf)
@@ -11,9 +12,50 @@ library(rnaturalearth)
 # if (!requireNamespace("ggsidekick", quietly = TRUE)) {
 #   devtools::install_github("seananderson/ggsidekick")
 # }
-# library(ggsidekick)
-# theme_set(theme_sleek())
+library(ggsidekick)
 
+# Data availability in each depth layer in each year
+at <- data.frame(year = 2007:2025, 
+                 gear = "AT",
+                 l1 = rep(0, 19),
+                 l2 = c(1, 1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1, 0),
+                 l3 = c(1, 1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1, 0),
+                 l4 = c(1, 1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1, 0))
+
+bt <- data.frame(year = 2007:2025,
+                 gear = "BT",
+                 l1 = c(rep(1, 14), 0, rep(1, 4)),
+                 l2 = c(rep(1, 14), 0, rep(1, 4)),
+                 l3 = c(rep(1, 14), 0, rep(1, 4)),
+                 l4 = c(rep(0, 19)))
+
+avo <- data.frame(year = 2007:2025,
+                  gear = "AVO",
+                  l1 = rep(0, 19),
+                  l2 = rep(0, 19),
+                  l3 = c(0, 0, 1, 1, 0, 1, 0, rep(1, 6), 0, rep(1, 5)),
+                  l4 = c(0, 0, 1, 1, 0, 1, 0, rep(1, 6), 0, rep(1, 5)))
+
+all_dat <- bind_rows(at, bt, avo) %>%
+  pivot_longer(cols = c("l1", "l2", "l3", "l4"), 
+               names_to = "depth_layer", values_to = "available") %>%
+  mutate(depth_layer = factor(depth_layer, levels = c("l4", "l3", "l2", "l1"),
+                              labels = c(">16m", "3-16m", "0.5-3m", "<0.5m")),
+         gear = factor(gear, levels = c("BT", "AT", "AVO")),
+         available = factor(available, levels = c(0, 1), labels = c("No", "Yes")))
+
+ggplot(all_dat) +
+  geom_tile(aes(x = year, y = gear, fill = available), color = "gray") +
+  facet_wrap(~ depth_layer, ncol = 1) +
+  scale_fill_manual(values = c("transparent", "#2f6ba0")) +
+  theme(legend.position = "none") +
+  xlab("") + ylab("") +
+  theme_sleek()
+
+ggsave(filename = here("output", "survey_availability.png"), 
+       width = 5.5, height = 5, units = "in", dpi = 300)
+
+# WKUSER plots ----------------------------------------------------------------
 source("~/GAP/gap-random/sleek_dark.R")
 theme_set(theme_sleek_transparent())
 
