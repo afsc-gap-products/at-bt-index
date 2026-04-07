@@ -24,9 +24,9 @@ at <- data.frame(year = 2007:2025,
 
 bt <- data.frame(year = 2007:2025,
                  gear = "BT",
-                 l1 = c(rep(1, 14), 0, rep(1, 4)),
-                 l2 = c(rep(1, 14), 0, rep(1, 4)),
-                 l3 = c(rep(1, 14), 0, rep(1, 4)),
+                 l1 = c(rep(1, 13), 0, rep(1, 5)),
+                 l2 = c(rep(1, 13), 0, rep(1, 5)),
+                 l3 = c(rep(1, 13), 0, rep(1, 5)),
                  l4 = c(rep(0, 19)))
 
 avo <- data.frame(year = 2007:2025,
