@@ -299,10 +299,23 @@ param_table <- as.data.frame(summary(sdrep, "fixed")) %>%
 # Set parameter names
 param_table$parameter <- rownames(param_table)
 rownames(param_table) <- NULL
+param_table$description <- case_when(
+  grepl("mu_c", param_table$parameter) ~ "Depth interval intercept",
+  grepl("log_catchability", param_table$parameter) ~ "Log catchability for AVO",
+  grepl("beta_ct", param_table$parameter) ~ "Depth interval year effect",
+  grepl("ln_q", param_table$parameter) ~ "Log catchability (AVO vs BT/AT)",
+  grepl("ln_kappa", param_table$parameter) ~ "Log spatial range parameter",
+  grepl("ln_tau_omega", param_table$parameter) ~ "Log precision of spatial random effect",
+  grepl("ln_tau_epsilon", param_table$parameter) ~ "Log precision of spatio-temporal random effect",
+  grepl("ln_phi", param_table$parameter) ~ "Log Tweedie dispersion parameter",
+  grepl("invf_p", param_table$parameter) ~ "Inverse logit Tweedie p parameter",
+  grepl("invf_rho", param_table$parameter) ~ "Rho (temporal autocorrelation)",
+  grepl("ln_sd", param_table$parameter) ~ "Log SD of AR(1) process for beta_ct"
+)
 
 # Select final columns
 param_table <- param_table %>%
-  select(parameter, Estimate, `Std. Error`, CI)
+  select(parameter, description, Estimate, `Std. Error`, CI)
 param_table
 
 write.csv(param_table, here(results_dir, "parameter_estimates.csv"), row.names = FALSE)
