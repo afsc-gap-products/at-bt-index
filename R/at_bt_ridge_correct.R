@@ -287,9 +287,27 @@ rep <- obj$report()
 
 save(obj, opt, parlist, Hess, biascor, sdrep, rep, year_set, file = here(results_dir, "model.RData"))
 
-# Extract index and proportion ------------------------------------------------
-if (!exists("obj")) { load(here(results_dir, "model.RData")) }
+# Table of standard errors, etc -----------------------------------------------
+if (!exists("obj")) {load(here(results_dir, "model.RData"))}
 
+# Extract parameter estimates and standard errors from sdreport, calculate CI
+param_table <- as.data.frame(summary(sdrep, "fixed")) %>%
+  mutate(Lower = Estimate - 1.96 * `Std. Error`,
+         Upper = Estimate + 1.96 * `Std. Error`,
+         CI = sprintf("%.2f (%.2f–%.2f)", Estimate, Lower, Upper)) 
+
+# Set parameter names
+param_table$parameter <- rownames(param_table)
+rownames(param_table) <- NULL
+
+# Select final columns
+param_table <- param_table %>%
+  select(parameter, Estimate, `Std. Error`, CI)
+param_table
+
+write.csv(param_table, here(results_dir, "parameter_estimates.csv"), row.names = FALSE)
+
+# Extract index and proportion ------------------------------------------------
 # Extract index
 SD_report <- as.list(sdrep, report = TRUE, what = "Std. Error")
 cov <- as.list(sdrep, report = TRUE, what = "")
