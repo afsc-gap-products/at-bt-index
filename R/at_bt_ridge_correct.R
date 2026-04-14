@@ -269,7 +269,7 @@ map <- list()
 map$invf_rho <- factor(NA)
 #map$ln_sd = factor(NA)
 map$ln_q <- factor(NA)
-map$rho_depth <- factor(NA)
+# map$rho_depth <- factor(NA)
   
 build_obj <- function() {
   MakeADFun( 
