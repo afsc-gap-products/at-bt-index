@@ -97,6 +97,13 @@ M0 <- spde$c0  # mass matrix
 M1 <- spde$g1  # gradient matrix (first derivative)
 M2 <- spde$g2  # stiffness matrix (second derivative / Laplacian)
 
+# Make correlation matrix
+make_cor_mat <- function(rho, n) {
+  mat <- matrix(rho, n, n)
+  diag(mat) <- 1
+  mat
+}
+
 parlist <- list(
   mu_c = rep(0, 4),
   beta_ct = array(0, dim = c(4, max(t_i))),
@@ -110,7 +117,8 @@ parlist <- list(
   ln_phi = log(1),
   invf_p = 0,
   invf_rho = 1,
-  ln_sd = log(0.1)
+  ln_sd = log(0.1),
+  rho_depth = 0  # parameter for correlation of depth layers
 )
 
 # Model construction ----------------------------------------------------------
@@ -125,6 +133,10 @@ jnll_spde <- function(parlist, what = "jnll") {
   rho <- invf_rho # plogis()
   sd <- exp(ln_sd)
   omega_ic <- A_is %*% omega_sc
+
+  rho_depth <- plogis(parlist$rho_depth)
+  cor_mat <- make_cor_mat(rho_depth, 4)
+  chol_cor <- chol(cor_mat)
   
   # Likelihood terms
   # For the following lines: 1 = <0.5m, 2 = 0.5-3m, 3 = 3-16m, 4 = >16m
@@ -185,6 +197,20 @@ jnll_spde <- function(parlist, what = "jnll") {
       }
     }}
   
+  for (t_index in 1:max(t_i)) {
+    # Stack all depth layers for each spatial location
+    eps_mat <- epsilon_sct[, , t_index]  # [n_spatial, n_depth]
+    # Decorrelate across depth layers
+    eps_decor <- eps_mat %*% solve(chol_cor)
+    for (c_index in 1:4) {
+      if (t_index == 1) {
+        nll_epsilon <- nll_epsilon - dgmrf(eps_decor[, c_index], Q = Q_epsilon, log = TRUE)
+      } else {
+        nll_epsilon <- nll_epsilon - dgmrf(eps_decor[, c_index], mu = rho * eps_decor[, c_index], Q = Q_epsilon, log = TRUE)
+      }
+    }
+  }
+  
   nll_prior <- -1 * dnorm(ln_q, mean = 0, sd = 0.15, log = TRUE)
   if(what == "jnll") out <- nll_data + nll_epsilon + nll_beta + nll_omega + nll_prior
   if(what == "diag") {
@@ -243,6 +269,7 @@ map <- list()
 map$invf_rho <- factor(NA)
 #map$ln_sd = factor(NA)
 map$ln_q <- factor(NA)
+map$rho_depth <- factor(NA)
   
 build_obj <- function() {
   MakeADFun( 
@@ -310,7 +337,8 @@ param_table$description <- case_when(
   grepl("ln_phi", param_table$parameter) ~ "Log Tweedie dispersion parameter",
   grepl("invf_p", param_table$parameter) ~ "Inverse logit Tweedie p parameter",
   grepl("invf_rho", param_table$parameter) ~ "Rho (temporal autocorrelation)",
-  grepl("ln_sd", param_table$parameter) ~ "Log SD of AR(1) process for beta_ct"
+  grepl("ln_sd", param_table$parameter) ~ "Log SD of AR(1) process for beta_ct",
+  grepl("rho_depth", param_table$parameter) ~ "Correlation across depth layers",
 )
 
 # Select final columns
@@ -430,7 +458,6 @@ plot_spatial_data <- function(grid, data_array, year_set, interval_labels, outpu
             axis.text = element_blank(),
             axis.ticks = element_blank())
     
-    # Save
     ggsave(filename = here(results_dir, paste0(output_prefix, "_", interval_labels[c_index], ".png")),
            width = 7.5, height = 5, units = "in", dpi = 300)
   }
