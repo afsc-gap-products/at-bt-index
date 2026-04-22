@@ -46,6 +46,11 @@ avo_joined <- avo_original %>%
   left_join(hauls, by = c("year", "station")) %>%
   mutate(from_surface = bottom_depth - height)
 
+# For Sabrina
+# avo_joined_clean <- avo_joined %>%
+#   select(year, latitude, longitude, height, bottom_depth, from_surface, sA)
+# write.csv(avo_joined_clean, file = here(wd, "avo_cleaned.csv"), row.names = FALSE)
+
 # Disaggregate 
 AVO2 <- avo_joined %>% 
   filter(height > 0.5 & height < 16) %>%  # 0.5m off bottom to 16m off bottom
