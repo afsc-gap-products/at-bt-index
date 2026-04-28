@@ -13,6 +13,7 @@ library(rnaturalearth)
 #   devtools::install_github("seananderson/ggsidekick")
 # }
 library(ggsidekick)
+theme_set(theme_sleek())
 
 # Data availability in each depth layer in each year
 at <- data.frame(year = 2007:2025, 
@@ -124,25 +125,14 @@ ggsave(avo_depth, filename = here(dir, "avo_weighted_depth.png"),
        width = 8, height = 3.5, units = "in", dpi = 300, bg = "transparent")
 
 # Survey location overlap -----------------------------------------------------
-dat <- read.csv(here("data", "data_real.csv"))[, -9]
-dat_avo <- cbind.data.frame(Lat = avo_processed$latitude,
-                            Lon = avo_processed$longitude,
-                            Year = avo_processed$year,
-                            sA = avo_processed$sA,
-                            Gear = avo_processed$gear,
-                            AreaSwept_km2 = 1,
-                            Vessel = "none",
-                            depth = avo_processed$height)
-
-all_dat <- rbind.data.frame(dat[, c(1:3, 5, 8)],
-                            dat_avo[, c(1:3, 5, 8)]) %>%
+dat <- read.csv(here("data", "2025", "dat_all.csv")) %>%
   filter(Gear %in% c("AT2", "BT", "AVO2")) %>%
   mutate(Gear = factor(Gear, levels = c("BT", "AT2", "AVO2"), labels = c("BT", "AT", "AVO"))) %>%
   filter(Year == 2016)
 
 survey_locations <- ggplot(data = world) +
   geom_sf() +
-  geom_point(data = all_dat, 
+  geom_point(data = dat, 
              aes(x = Lon, y = Lat, color = Gear)) +
   coord_sf(xlim = c(-179, -157), ylim = c(53.8, 63.5), expand = FALSE) +
   scale_color_manual(values = c("#834beb", "#2FB47C", "#FDE725")) +
