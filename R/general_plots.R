@@ -143,9 +143,22 @@ survey_locations <- ggplot(data = world) +
   labs(x = NULL, y = NULL) +
   facet_wrap(~ Gear)
 survey_locations
-
+  
 ggsave(survey_locations, filename = here(dir, "survey_locations.png"),
        width = 7, height = 3, units = "in", dpi = 300, bg = "transparent")
+
+# Constrain BT to AVO extent
+avo_sf <- dat %>% filter(Gear == "AVO") %>%
+  st_as_sf(coords = c("Lon", "Lat"), crs = 3338)  # Project to Alaska Albers
+avo_sf <- st_convex_hull(st_union(avo_sf))  # Create convex hull around AVO points
+
+bt_sf <- dat %>% filter(Gear == "BT") %>%
+  st_as_sf(coords = c("Lon", "Lat"), crs = 3338)  # Project to Alaska Albers
+bt_constrained <- st_filter(bt_sf, avo_sf)  # Keep only BT points that fall within AVO convex hull
+bt_final <- bt_constrained %>% st_transform(crs = 4326) %>%  # Transform back to WGS84 
+    mutate(Lon = st_coordinates(.)[, 1], Lat = st_coordinates(.)[, 2]) %>%
+    st_drop_geometry() 
+
 
 # Original model results ------------------------------------------------------
 avail_depth <- read.csv(here("Results", "archive", "availability_depth_noAVO.csv"))[, -1] %>%
