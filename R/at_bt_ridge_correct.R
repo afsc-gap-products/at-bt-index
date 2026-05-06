@@ -39,7 +39,7 @@ if (!requireNamespace("ggsidekick", quietly = TRUE)) {
 library(ggsidekick)
 theme_set(theme_sleek())
 
-results_dir <- here("Results", "new_at_years")
+results_dir <- here("Results", "new_avo_years")
 if (!dir.exists(results_dir)) {
   dir.create(results_dir, recursive = TRUE)
 }
@@ -352,7 +352,7 @@ pair_df <- data.frame(
 
 # Code up color by survey data availability
 year_key <- rep(year_set, each = dim(eps_array))
-year_key <- case_when(year_key %in% c(2007, 2008, 2011, 2013) ~ "no AVO",
+year_key <- case_when(year_key %in% c(2007, 2008) ~ "no AVO",
                       year_key %in% c(2011, 2013, 2015, 2017) ~ "no AT",
                       TRUE ~ "all surveys")
 
