@@ -8,6 +8,10 @@ library(viridis)
 library(sf)
 library(rnaturalearth)
 
+# Get land polygons for maps
+world <- rnaturalearth::ne_countries(scale = "medium", returnclass = "sf")
+sf_use_s2(FALSE)  # turn off spherical geometry
+
 # Set ggplot theme
 # if (!requireNamespace("ggsidekick", quietly = TRUE)) {
 #   devtools::install_github("seananderson/ggsidekick")
@@ -103,8 +107,6 @@ avo_processed <- avo_processed %>%
 # Convert AVO points to sf
 avo_sf <- st_as_sf(avo_processed, coords = c("longitude", "latitude"), crs = 4326)
 
-world <- rnaturalearth::ne_countries(scale = "medium", returnclass = "sf")
-sf_use_s2(FALSE)  # turn off spherical geometry
 avo_depth <- ggplot(avo_sf) +
   geom_sf(data = world) +
   geom_sf(data = avo_sf, aes(color = weighted_depth), shape = "square") +
@@ -125,14 +127,13 @@ ggsave(avo_depth, filename = here(dir, "avo_weighted_depth.png"),
        width = 8, height = 3.5, units = "in", dpi = 300, bg = "transparent")
 
 # Survey location overlap -----------------------------------------------------
-dat <- read.csv(here("data", "2025", "dat_all.csv")) %>%
+dat_loc <- read.csv(here("data", "2025", "dat_all.csv")) %>%
   filter(Gear %in% c("AT2", "BT", "AVO2")) %>%
-  mutate(Gear = factor(Gear, levels = c("BT", "AT2", "AVO2"), labels = c("BT", "AT", "AVO"))) %>%
-  filter(Year == 2016)
+  mutate(Gear = factor(Gear, levels = c("BT", "AT2", "AVO2"), labels = c("BT", "AT", "AVO"))) 
 
 survey_locations <- ggplot(data = world) +
   geom_sf() +
-  geom_point(data = dat, 
+  geom_point(data = dat_loc %>% filter(Year == 2016), 
              aes(x = Lon, y = Lat, color = Gear)) +
   coord_sf(xlim = c(-179, -157), ylim = c(53.8, 63.5), expand = FALSE) +
   scale_color_manual(values = c("#834beb", "#2FB47C", "#FDE725")) +
@@ -144,21 +145,54 @@ survey_locations <- ggplot(data = world) +
   facet_wrap(~ Gear)
 survey_locations
   
-ggsave(survey_locations, filename = here(dir, "survey_locations.png"),
+ggsave(survey_locations, filename = here("output", "survey_locations.png"),
        width = 7, height = 3, units = "in", dpi = 300, bg = "transparent")
 
-# Constrain BT to AVO extent
-avo_sf <- dat %>% filter(Gear == "AVO") %>%
-  st_as_sf(coords = c("Lon", "Lat"), crs = 3338)  # Project to Alaska Albers
-avo_sf <- st_convex_hull(st_union(avo_sf))  # Create convex hull around AVO points
+# Constrain BT to at extent
+install.packages("concaveman") 
+library(concaveman)
 
-bt_sf <- dat %>% filter(Gear == "BT") %>%
-  st_as_sf(coords = c("Lon", "Lat"), crs = 3338)  # Project to Alaska Albers
-bt_constrained <- st_filter(bt_sf, avo_sf)  # Keep only BT points that fall within AVO convex hull
-bt_final <- bt_constrained %>% st_transform(crs = 4326) %>%  # Transform back to WGS84 
-    mutate(Lon = st_coordinates(.)[, 1], Lat = st_coordinates(.)[, 2]) %>%
-    st_drop_geometry() 
+# Create a concave hull polygon from at points
+at_sf <- dat_loc |> 
+  filter(Gear == "AT") |> 
+  st_as_sf(coords = c("Lon", "Lat"), crs = 4326)
 
+at_proj <- at_sf |> st_transform(3338)
+bt_proj  <- bt_sf   |> st_transform(3338)
+
+at_concave <- concaveman(at_proj)  
+
+# Keep only BT points within the concave hull
+bt_in_at <- bt_proj[st_within(bt_proj, at_concave, sparse = FALSE), ]
+
+# Extract coordinates for plotting
+bt_in_at_ll <- bt_in_at |> st_transform(4326)
+coords <- st_coordinates(bt_in_at_ll)
+bt_final <- bt_in_at_ll |>
+  mutate(
+    Lon = coords[, 1],
+    Lat = coords[, 2],
+    Gear = "BT new",
+    Year = Year
+  ) |>
+  st_drop_geometry()
+
+dat_loc_new <- rbind.data.frame(dat_loc, bt_final) 
+ggplot(data = world) +
+  geom_sf() +
+  geom_point(data = dat_loc_new %>% filter(Year %in% c(2016, 2022)), 
+            aes(x = Lon, y = Lat, color = Gear), size = 0.7) +
+  coord_sf(xlim = c(-179, -157), ylim = c(53.8, 63.5), expand = FALSE) +
+  scale_color_manual(values = c("#834beb", "#2FB47C", "#FDE725", "#43bce8")) +
+  theme(axis.title = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        legend.position = "none") +
+  labs(x = NULL, y = NULL) +
+  facet_grid(Year ~ Gear)
+
+ggsave(filename = here("output", "survey_locations_constrained.png"),
+       width = 7, height = 3, units = "in", dpi = 300, bg = "transparent")
 
 # Original model results ------------------------------------------------------
 avail_depth <- read.csv(here("Results", "archive", "availability_depth_noAVO.csv"))[, -1] %>%

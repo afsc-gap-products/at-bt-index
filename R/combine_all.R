@@ -29,6 +29,40 @@ dat_new <- rbind.data.frame(at_new, bt_new, avo)
   
 write.csv(dat_new, here("data", year, "dat_all.csv"), row.names = FALSE)
 
+# Constrain BT data to the same range as AT -----------------------------------
+# Create a concave hull polygon from AT points
+at_proj <- dat_new |> 
+  filter(Gear %in% c("AT1", "AT2", "AT3")) |> 
+  st_as_sf(coords = c("Lon", "Lat"), crs = 4326) |> 
+  st_transform(3338)
+
+bt_proj <- dat_new |> 
+  filter(Gear == "BT") |> 
+  st_as_sf(coords = c("Lon", "Lat"), crs = 4326) |>
+  st_transform(3338)
+
+# install.packages("concaveman") 
+library(concaveman)
+at_concave <- concaveman(at_proj)  
+
+# Keep only BT points within the concave hull
+bt_in_at <- bt_proj[st_within(bt_proj, at_concave, sparse = FALSE), ]
+
+# Extract coordinates for plotting
+bt_in_at_ll <- bt_in_at |> st_transform(4326)
+coords <- st_coordinates(bt_in_at_ll)
+bt_final <- bt_in_at_ll |>
+  mutate(
+    Lon = coords[, 1],
+    Lat = coords[, 2],
+    Gear = "BT",
+    Year = Year
+  ) |>
+  st_drop_geometry()
+
+dat_constrained <- rbind.data.frame(at_new, bt_final, avo)
+write.csv(dat_constrained, here("data", year, "dat_bt_constrained.csv"), row.names = FALSE)
+
 # Check if raw data looks ok --------------------------------------------------
 library(ggsidekick)
 theme_set(theme_sleek())
