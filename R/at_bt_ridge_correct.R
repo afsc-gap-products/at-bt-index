@@ -485,13 +485,8 @@ bt_years <- unique(dat[dat$Gear == "BT", ]$Year)
 
 survey_yr_points <- avail_gear %>% 
   filter((Gear == "AT" & Year %in% at_years) | 
-           (Gear == "BT" & Year %in% bt_years))
-survey_yr_points <- rbind.data.frame(survey_yr_points,
-                                     cbind.data.frame(Year = unique(dat[dat$Gear == "AVO2", ]$Year),
-                                                      Proportion = 0,
-                                                      SD = 0,
-                                                      Gear = "AVO")) %>%
-  mutate(Gear = factor(Gear, levels = c("AT", "BT", "AVO")))
+           (Gear == "BT" & Year %in% bt_years)) %>%
+  mutate(Gear = factor(Gear, levels = c("AT", "BT")))
 
 gear_plot <- ggplot() +
   geom_line(data = avail_gear, 
@@ -500,8 +495,8 @@ gear_plot <- ggplot() +
              aes(x = Year, y = Proportion, color = Gear, shape = Gear)) +
   geom_ribbon(data = avail_gear, 
               aes(x = Year, ymin = (Proportion - 2 * SD), ymax = (Proportion + 2 * SD), fill = Gear), alpha = 0.4) +
-  scale_color_manual(values = c("#93329E", "#A4C400", "black")) +
-  scale_fill_manual(values = c("#93329E", "#A4C400", "black"))
+  scale_color_manual(values = c("#93329E", "#A4C400")) +
+  scale_fill_manual(values = c("#93329E", "#A4C400"))
 gear_plot
 
 ggsave(gear_plot, filename = here(results_dir, "avail_gear_plot.png"),
