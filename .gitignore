@@ -19,3 +19,7 @@
 
 # Ignore EBS shelf shapefiles
 EBSshelf*
+
+# Exceptions for data needed to run main code
+!data/ebs_grid.Rdata
+!data/2025/dat_all.csv
