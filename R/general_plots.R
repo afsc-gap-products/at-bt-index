@@ -34,8 +34,8 @@ avo <- data.frame(year = 2007:2025,
                   gear = "AVO",
                   l1 = rep(0, 19),
                   l2 = rep(0, 19),
-                  l3 = c(0, 0, 1, 1, 0, 1, 0, rep(1, 6), 0, rep(1, 5)),
-                  l4 = c(0, 0, 1, 1, 0, 1, 0, rep(1, 6), 0, rep(1, 5)))
+                  l3 = c(0, 0, rep(1, 11), 0, rep(1, 5)),
+                  l4 = c(0, 0, rep(1, 11), 0, rep(1, 5)))
 
 all_dat <- bind_rows(at, bt, avo) %>%
   pivot_longer(cols = c("l1", "l2", "l3", "l4"), 

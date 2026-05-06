@@ -26,7 +26,7 @@ wd <- here("data", year)
 plotting <- TRUE
 
 # Year set for AVO
-avo_years <- c(2009, 2010, 2012, 2014:2019, 2021:2025)
+avo_years <- c(2009:2019, 2021:2025)
 
 # Read in & update haul information
 hauls <- read.csv(here(wd, "hauls.csv")) %>%
@@ -102,7 +102,7 @@ if(plotting == TRUE) {
   world <- rnaturalearth::ne_countries(scale = "medium", returnclass = "sf")
   sf_use_s2(FALSE)  # turn off spherical geometry
   
-  avo_prop <- ggplot(data = world) +
+  ggplot(data = world) +
     geom_sf() +
     geom_tile(data = rbind.data.frame(AVO2_prop, AVO3_prop), 
               aes(x = longitude, y = latitude, fill = proportion),
@@ -117,13 +117,8 @@ if(plotting == TRUE) {
           axis.ticks.y=element_blank()) +
     labs(x = NULL, y = NULL) +
     theme(legend.position = "bottom") +
-    ggforce::facet_grid_paginate(gear ~ year, ncol = 7, nrow = 2, page = 1) 
-  
-  avo_prop2 <- avo_prop +
-    ggforce::facet_grid_paginate(gear ~ year, ncol = 7, nrow = 2, page = 2)
+    facet_grid(gear ~ year)
 
-  ggsave(avo_prop, filename = here("Results", "avo exploration", "avo_prop1.png"),
-         width = 250, height = 100, units = "mm", dpi = 300)
-  ggsave(avo_prop2, filename = here("Results", "avo exploration", "avo_prop2.png"),
-         width = 250, height = 100, units = "mm", dpi = 300)
+  # ggsave(filename = here("Results", "avo exploration", "avo_prop.png"),
+  #        width = 250, height = 100, units = "mm", dpi = 300)
 }
