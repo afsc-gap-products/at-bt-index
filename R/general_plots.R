@@ -8,10 +8,6 @@ library(viridis)
 library(sf)
 library(rnaturalearth)
 
-# Get land polygons for maps
-world <- rnaturalearth::ne_countries(scale = "medium", returnclass = "sf")
-sf_use_s2(FALSE)  # turn off spherical geometry
-
 # Set ggplot theme
 # if (!requireNamespace("ggsidekick", quietly = TRUE)) {
 #   devtools::install_github("seananderson/ggsidekick")
@@ -19,7 +15,11 @@ sf_use_s2(FALSE)  # turn off spherical geometry
 library(ggsidekick)
 theme_set(theme_sleek())
 
-# Data availability in each depth layer in each year
+# Get land polygons for maps
+world <- rnaturalearth::ne_countries(scale = "medium", returnclass = "sf")
+sf_use_s2(FALSE)  # turn off spherical geometry
+
+# Data availability in each depth layer in each year --------------------------
 at <- data.frame(year = 2007:2025, 
                  gear = "AT",
                  l1 = rep(0, 19),
@@ -41,7 +41,7 @@ avo <- data.frame(year = 2007:2025,
                   l3 = c(0, 0, rep(1, 11), 0, rep(1, 5)),
                   l4 = c(0, 0, rep(1, 11), 0, rep(1, 5)))
 
-all_dat <- bind_rows(at, bt, avo) %>%
+dat_avail <- bind_rows(at, bt, avo) %>%
   pivot_longer(cols = c("l1", "l2", "l3", "l4"), 
                names_to = "depth_layer", values_to = "available") %>%
   mutate(depth_layer = factor(depth_layer, levels = c("l4", "l3", "l2", "l1"),
@@ -49,7 +49,7 @@ all_dat <- bind_rows(at, bt, avo) %>%
          gear = factor(gear, levels = c("BT", "AT", "AVO")),
          available = factor(available, levels = c(0, 1), labels = c("No", "Yes")))
 
-ggplot(all_dat) +
+ggplot(dat_avail) +
   geom_tile(aes(x = year, y = gear, fill = available), color = "gray") +
   facet_wrap(~ depth_layer, ncol = 1) +
   scale_fill_manual(values = c("transparent", "#2f6ba0")) +
@@ -158,7 +158,7 @@ at_sf <- dat_loc |>
   st_as_sf(coords = c("Lon", "Lat"), crs = 4326)
 
 at_proj <- at_sf |> st_transform(3338)
-bt_proj  <- bt_sf   |> st_transform(3338)
+bt_proj  <- bt_sf |> st_transform(3338)
 
 at_concave <- concaveman(at_proj)  
 

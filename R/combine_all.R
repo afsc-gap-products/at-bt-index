@@ -63,19 +63,27 @@ bt_final <- bt_in_at_ll |>
 dat_constrained <- rbind.data.frame(at_new, bt_final, avo)
 write.csv(dat_constrained, here("data", year, "dat_bt_constrained.csv"), row.names = FALSE)
 
-# Check if raw data looks ok --------------------------------------------------
-library(ggsidekick)
-theme_set(theme_sleek())
+# Plot data for each layer and survey -----------------------------------------
+dir.create(here("output", "data_by_gear")) 
 
-test <- rbind.data.frame(at_new %>% mutate(Gear = "AT"),
-                         bt_new %>% mutate(Gear = "BT"),
-                         avo %>% mutate(Gear = "AVO")) %>%
-  group_by(Year, Gear) %>%
-  summarize(Mean = mean(Abundance)) %>%
-  ggplot(.) +
-  geom_bar(aes(x = Year, y = Mean, fill = Gear),
-           position = "dodge", stat = "identity")
-test
+plot_by_gear <- function(dat2, gear) {
+  p <- ggplot() +
+    geom_sf(data = world) +
+    geom_point(data = dat2, aes(Lon, Lat, color = log(Abundance)), size = 0.7) +
+    scale_color_viridis_c() +
+    coord_sf(xlim = range(dat2$Lon), 
+             ylim = range(dat2$Lat), 
+             expand = TRUE) +  # ggplot adds a buffer
+    xlab("") + ylab("") +
+    facet_wrap(~ Year)
+  ggsave(p, filename = here("output", "data_by_gear", paste0("data_", gear, ".png")),
+         width = 9, height = 7, units = "in", dpi = 300)
+}
+
+lapply(unique(dat_new$Gear), function(i) {
+  dat2 <- dat_new %>% filter(Gear == i)
+  plot_by_gear(dat2, i)
+})
 
 # Plot the survey years -------------------------------------------------------
 survey_years <- bind_rows(
