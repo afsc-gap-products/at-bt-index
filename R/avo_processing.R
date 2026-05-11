@@ -44,7 +44,8 @@ for(i in avo_years) {
 # Join with depth information from haul dataframe
 avo_joined <- avo_original %>% 
   left_join(hauls, by = c("year", "station")) %>%
-  mutate(from_surface = bottom_depth - height)
+  mutate(from_surface = bottom_depth - height) %>%
+  filter(latitude > 0 & longitude < 0)  # there are a few points with lat/Lon = 0
 
 # Disaggregate 
 AVO2 <- avo_joined %>% 
