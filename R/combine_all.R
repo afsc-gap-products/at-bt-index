@@ -81,7 +81,8 @@ plot_by_gear <- function(dat2, gear) {
 }
 
 lapply(unique(dat_new$Gear), function(i) {
-  dat2 <- dat_new %>% filter(Gear == i)
+  dat2 <- dat_new %>% 
+    filter(Gear == i & Abundance > 0)  # filter out zeroes for plotting
   plot_by_gear(dat2, i)
 })
 
