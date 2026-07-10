@@ -60,6 +60,27 @@ ggplot(dat_avail) +
 ggsave(filename = here("output", "survey_availability.png"), 
        width = 5.5, height = 5, units = "in", dpi = 300)
 
+# Number of observations by gear type and year ---------------------------------------------
+dat_sum <- read.csv(here("data", "2025", "dat_all.csv")) %>%
+  filter(Gear != "BT") %>%
+  mutate(
+    gear = case_when(
+      str_detect(Gear, "^AT") ~ "AT",
+      str_detect(Gear, "^AVO")~ "AVO"),
+    depth_layer = case_when(
+      Gear == "AT1"  ~ "<0.5m",
+      Gear == "AT2"  ~ "0.5-3m",
+      Gear == "AT3"  ~ "3-16m",
+      Gear == "AVO2" ~ "0.5-3m",
+      Gear == "AVO3" ~ "3-16m")
+  ) %>%
+  group_by(Year, gear, depth_layer) %>%
+  summarize(obs = n(), .groups = "drop")
+
+ggplot(dat_sum) +
+  geom_bar(aes(x = Year, y = obs, fill = gear), stat = "identity", position = "stack") +
+  facet_wrap(~ depth_layer, ncol = 1) 
+
 # WKUSER plots ----------------------------------------------------------------
 source("~/GAP/gap-random/sleek_dark.R")
 theme_set(theme_sleek_transparent())
