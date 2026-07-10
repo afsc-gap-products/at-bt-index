@@ -339,8 +339,6 @@ prop_bt <- colSums(index_ct[1:3, ]) / colSums(index_ct)
 prop_at <- colSums(index_ct[2:4, ]) / colSums(index_ct)
 
 # Residuals -------------------------------------------------------------------
-pred_total <- rep$Btotal_t
-
 # Extract Tweedie parameters
 p <- plogis(opt$par["invf_p"]) + 1  # transform back to (1, 2)
 phi <- exp(opt$par["ln_phi"])       # dispersion
@@ -350,41 +348,11 @@ n_sims <- 250
 simulated_data <- matrix(NA, nrow = length(b_i), ncol = n_sims)
 
 for (i in seq_len(n_sims)) {
-  simulated_data[, i] <- tweedie::rtweedie(length(b_i), mu = pred_total, phi = phi, power = p)
+  simulated_data[, i] <- tweedie::rtweedie(length(b_i), mu = rep$Btotal_t, phi = phi, power = p)
 }
 
-# Extract spatial random effects and project to observation locations
-omega_i <- rep(0, nrow(A_is))  # Zero out spatial effects for now
-
-pred_response <- numeric(length(b_i))
-
-for (i in seq_along(b_i)) {
-  eps_i <- sum(A_is[i, ] * parlist$epsilon_sct[, 1, t_i[i]])
-  
-  if (Gear[i] == "BT") {
-    pred_response[i] <- exp(parlist$ln_q + sum(A_is[i, ] * parlist$epsilon_sct[, 1, t_i[i]]) + 
-                            parlist$beta_ct[1, t_i[i]] + parlist$mu_c[1] + omega_i[i]) +
-                        exp(parlist$ln_q + sum(A_is[i, ] * parlist$epsilon_sct[, 2, t_i[i]]) + 
-                            parlist$beta_ct[2, t_i[i]] + parlist$mu_c[2] + omega_i[i]) +
-                        exp(parlist$ln_q + sum(A_is[i, ] * parlist$epsilon_sct[, 3, t_i[i]]) + 
-                            parlist$beta_ct[3, t_i[i]] + parlist$mu_c[3] + omega_i[i])
-  } else if (Gear[i] == "AT1") {
-    pred_response[i] <- exp(sum(A_is[i, ] * parlist$epsilon_sct[, 2, t_i[i]]) + 
-                            parlist$beta_ct[2, t_i[i]] + parlist$mu_c[2] + omega_i[i])
-  } else if (Gear[i] == "AT2") {
-    pred_response[i] <- exp(sum(A_is[i, ] * parlist$epsilon_sct[, 3, t_i[i]]) + 
-                            parlist$beta_ct[3, t_i[i]] + parlist$mu_c[3] + omega_i[i])
-  } else if (Gear[i] == "AT3") {
-    pred_response[i] <- exp(sum(A_is[i, ] * parlist$epsilon_sct[, 4, t_i[i]]) + 
-                            parlist$beta_ct[4, t_i[i]] + parlist$mu_c[4] + omega_i[i])
-  } else if (Gear[i] == "AVO2") {
-    pred_response[i] <- exp(sum(A_is[i, ] * parlist$epsilon_sct[, 3, t_i[i]]) + 
-                            parlist$beta_ct[3, t_i[i]] + parlist$mu_c[3] + omega_i[i] + parlist$log_catchability)
-  } else if (Gear[i] == "AVO3") {
-    pred_response[i] <- exp(sum(A_is[i, ] * parlist$epsilon_sct[, 4, t_i[i]]) + 
-                            parlist$beta_ct[4, t_i[i]] + parlist$mu_c[4] + omega_i[i] + parlist$log_catchability)
-  }
-}
+pred_response <- as.vector(apply(Dhat_gct, c(1, 3), sum))
+    
 # Create DHARMa residuals with observation-level predictions
 simulated_residuals <- createDHARMa(
   simulatedResponse = simulated_data,
