@@ -232,6 +232,7 @@ jnll_spde <- function(parlist, what = "jnll") {
     ADREPORT(Paccoustic_t)
   }
   ADREPORT(index_ct)
+  ADREPORT(D_gct)
   return(out)
 }
 
@@ -431,8 +432,14 @@ plot_spatial_data <- function(grid, data_array, year_set, interval_labels, outpu
             axis.ticks = element_blank())
     
     # Save
-    ggsave(filename = here(results_dir, paste0(output_prefix, "_", interval_labels[c_index], ".png")),
-           width = 7.5, height = 5, units = "in", dpi = 300)
+    ggsave(
+      filename = here(results_dir, paste0(output_prefix, "_", interval_labels[c_index], ".png")),
+      width = 7.5, height = 5, units = "in", dpi = 300
+    )
+    write.csv(
+      plotgrid_long, here(results_dir, paste0(output_prefix, "_", "spatial", ".csv")), 
+      row.names = FALSE
+    )
   }
 }
 
