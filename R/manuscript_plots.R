@@ -58,5 +58,36 @@ ggplot(dat_avail) +
   xlab("") + ylab("") +
   theme_sleek()
 
-ggsave(filename = here("output", "survey_availability.png"), 
+ggsave(filename = here("output", "figures", "survey_availability.png"), 
        width = 5.5, height = 5, units = "in", dpi = 300)
+
+
+# Spatial density and standard error ------------------------------------------
+interval_labels = c("0.5", "0.5-3", "3-16", "16")
+
+# Load in and plot spatial density results
+spatial_results <- function(interval) {
+  den_map <- readRDS(here::here(
+    "Results", 
+    "new_avo_years", 
+    paste0("Densities", "_", interval, ".rds")
+  ))
+
+  ggplot(den_map) +
+    geom_sf(aes(fill = value, color = value)) +
+    scale_fill_viridis(na.value = NA) +
+    scale_color_viridis(na.value = NA) +
+    facet_wrap(~year) +
+    labs(fill = "Density", color = "Density") +
+    theme(axis.title = element_blank(),
+          axis.text = element_blank(),
+          axis.ticks = element_blank())
+}
+
+# Apply function to each layer
+lapply(interval_labels, function(i) {
+  spatial_results(i)
+  ggsave(filename = here("output", "figures", paste0("density_", i, ".png")),
+         width = 9, height = 6, units = "in", dpi = 300)
+})
+

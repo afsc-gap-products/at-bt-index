@@ -436,9 +436,9 @@ plot_spatial_data <- function(grid, data_array, year_set, interval_labels, outpu
       filename = here(results_dir, paste0(output_prefix, "_", interval_labels[c_index], ".png")),
       width = 7.5, height = 5, units = "in", dpi = 300
     )
-    write.csv(
-      plotgrid_long, here(results_dir, paste0(output_prefix, "_", "spatial", ".csv")), 
-      row.names = FALSE
+    saveRDS(
+      plotgrid_long, 
+      here(results_dir, paste0(output_prefix, "_", interval_labels[c_index], ".rds"))
     )
   }
 }
