@@ -232,7 +232,7 @@ jnll_spde <- function(parlist, what = "jnll") {
     ADREPORT(Paccoustic_t)
   }
   ADREPORT(index_ct)
-  ADREPORT(D_gct)
+  # ADREPORT(D_gct)  # too computationally expensive (CHOLMOD error 'problem too large')
   return(out)
 }
 
