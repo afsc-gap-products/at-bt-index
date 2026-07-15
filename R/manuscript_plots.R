@@ -53,7 +53,7 @@ dat_avail <- bind_rows(at, bt, avo) %>%
 ggplot(dat_avail) +
   geom_tile(aes(x = year, y = gear, fill = Available), color = "gray") +
   facet_wrap(~ depth_layer, ncol = 1) +
-  scale_fill_manual(values = c("transparent", "#2f6ba0")) +
+  scale_fill_manual(values = c("transparent", "#4c126b")) +
   theme(legend.position = "none") +
   xlab("") + ylab("") +
   theme_sleek()
@@ -62,8 +62,8 @@ ggsave(filename = here("output", "figures", "survey_availability.png"),
        width = 5.5, height = 5, units = "in", dpi = 300)
 
 
-# Spatial density and standard error ------------------------------------------
-interval_labels = c("0.5", "0.5-3", "3-16", "16")
+# Spatial density -------------------------------------------------------------
+labels = c("0.5", "0.5-3", "3-16", "16") # , "AT", "BT")  # select which to read in
 
 # Load in and plot spatial density results
 spatial_results <- function(interval) {
@@ -71,9 +71,10 @@ spatial_results <- function(interval) {
     "Results", 
     "new_avo_years", 
     paste0("Densities", "_", interval, ".rds")
-  ))
+  )) %>%
+    mutate(year = as.integer(year))
 
-  ggplot(den_map) +
+  plot <- ggplot(den_map) +
     geom_sf(aes(fill = value, color = value)) +
     scale_fill_viridis(na.value = NA) +
     scale_color_viridis(na.value = NA) +
@@ -82,12 +83,49 @@ spatial_results <- function(interval) {
     theme(axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank())
+  
+  return(list(df = den_map, plot = plot))
 }
 
 # Apply function to each layer
-lapply(interval_labels, function(i) {
-  spatial_results(i)
-  ggsave(filename = here("output", "figures", paste0("density_", i, ".png")),
-         width = 9, height = 6, units = "in", dpi = 300)
+spatial_df <- lapply(labels, function(i) {
+  df_out <- spatial_results(i) 
+  
+  ggsave(
+    filename = here::here("output", "figures", paste0("density_", i, ".png")),
+    plot = df_out$plot,
+    width = 9, height = 6, units = "in", dpi = 300
+  )
+  
+  return(df_out$df) 
 })
 
+names(spatial_df) <- labels
+
+combined_df <- bind_rows(spatial_df, .id = "interval") %>%
+  mutate(interval = factor(
+    interval, 
+    levels = c("16", "3-16", "0.5-3", "0.5"), 
+    labels = c(">16m", "3-16m", "0.5-3m", "<0.5m")
+  )) %>%
+  filter(year %in% c(2007, 2010, 2013, 2017, 2021, 2024))
+
+# Single, faceted plot of density
+ggplot(combined_df) +
+  geom_sf(aes(fill = value, color = value)) +
+  scale_fill_viridis_c(na.value = NA, option = "inferno") +
+  scale_color_viridis_c(na.value = NA, option = "inferno") +
+  facet_grid(interval ~ year) + 
+  labs(fill = "log(Density)", color = "log(Density)") +
+  theme(
+    axis.title = element_blank(),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    panel.grid = element_blank()
+  )
+
+ggsave(
+    filename = here::here("output", "figures", "combined_density.png"),
+    width = 11, height = 5, units = "in", dpi = 300
+  )
+  
