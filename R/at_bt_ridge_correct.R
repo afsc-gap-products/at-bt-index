@@ -224,6 +224,7 @@ jnll_spde <- function(parlist, what = "jnll") {
   REPORT(Btrawl_t)
   REPORT(Baccoustic_t)
   REPORT(Btotal_t)
+  REPORT(yhat)
   # bias-correction and SEs (be parsimonious to avoid memory issue)
   # ADREPORT(Btrawl_t)
   # ADREPORT(Baccoustic_t)
@@ -350,14 +351,13 @@ simulated_data <- matrix(NA, nrow = length(b_i), ncol = n_sims)
 for (i in seq_len(n_sims)) {
   simulated_data[, i] <- tweedie::rtweedie(length(b_i), mu = rep$Btotal_t, phi = phi, power = p)
 }
-
-pred_response <- as.vector(apply(Dhat_gct, c(1, 3), sum))
     
 # Create DHARMa residuals with observation-level predictions
 simulated_residuals <- createDHARMa(
   simulatedResponse = simulated_data,
   observedResponse = b_i,
-  fittedPredictedResponse = pred_response
+  fittedPredictedResponse = yhat,
+  integerResponse = FALSE
 )
 
 # Plot residuals
