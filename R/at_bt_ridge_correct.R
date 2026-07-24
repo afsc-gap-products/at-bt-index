@@ -46,7 +46,8 @@ if (!dir.exists(results_dir)) {
 
 # Read in data and set up model inputs ----------------------------------------
 year <- 2025  # static for now (but set up for updating annually)
-dat <- read.csv(here("data", year, "dat_all.csv")) 
+dat <- read.csv(here("data", year, "dat_all.csv")) %>%
+  filter(!grepl("AVO", Gear))
 
 # # Thin AVO3 samples
 # which_AVO3 <- which(dat$Gear == "AVO3")
@@ -102,7 +103,7 @@ parlist <- list(
   beta_ct = array(0, dim = c(4, max(t_i))),
   epsilon_sct = array(0, dim = c(mesh$n, 4, max(t_i))),
   omega_sc = array(0, dim = c(mesh$n, 4)),
-  log_catchability = c(0),  # Q = E( backscatter / biomass )
+  # log_catchability = c(0),  # Q = E( backscatter / biomass )
   ln_kappa = log(1),
   ln_tau_omega = log(1),
   ln_tau_epsilon = log(1),
@@ -141,8 +142,8 @@ jnll_spde <- function(parlist, what = "jnll") {
     if(Gear[i] == "AT2") yhat <- exp(sum(A_is[i, ] * epsilon_sct[, 3, t_i[i]]) + beta_ct[3, t_i[i]] + mu_c[3] + omega_ic[i, 3]) 
     if(Gear[i] == "AT3") yhat <- exp(sum(A_is[i, ] * epsilon_sct[, 4,t_i[i]]) + beta_ct[4, t_i[i]] + mu_c[4] + omega_ic[i, 4])
     # AVO only available for 3-16 and >16
-    if(Gear[i] == "AVO2") yhat <- exp(sum(A_is[i, ] * epsilon_sct[, 3, t_i[i]]) + beta_ct[3, t_i[i]] + mu_c[3] + omega_ic[i, 3] + log_catchability)
-    if(Gear[i] == "AVO3") yhat <- exp(sum(A_is[i, ] * epsilon_sct[, 4, t_i[i]]) + beta_ct[4, t_i[i]] + mu_c[4] + omega_ic[i, 4] + log_catchability)
+    # if(Gear[i] == "AVO2") yhat <- exp(sum(A_is[i, ] * epsilon_sct[, 3, t_i[i]]) + beta_ct[3, t_i[i]] + mu_c[3] + omega_ic[i, 3] + log_catchability)
+    # if(Gear[i] == "AVO3") yhat <- exp(sum(A_is[i, ] * epsilon_sct[, 4, t_i[i]]) + beta_ct[4, t_i[i]] + mu_c[4] + omega_ic[i, 4] + log_catchability)
     nll_data <- nll_data - RTMB:::Term(dtweedie(x = b_i[i], 
                                                 mu = yhat, 
                                                 phi = phi,
@@ -302,7 +303,7 @@ param_table$parameter <- rownames(param_table)
 rownames(param_table) <- NULL
 param_table$description <- case_when(
   grepl("mu_c", param_table$parameter) ~ "Depth interval intercept",
-  grepl("log_catchability", param_table$parameter) ~ "Log catchability for AVO",
+  # grepl("log_catchability", param_table$parameter) ~ "Log catchability for AVO",
   grepl("beta_ct", param_table$parameter) ~ "Depth interval year effect",
   grepl("ln_q", param_table$parameter) ~ "Log catchability (AVO vs BT/AT)",
   grepl("ln_kappa", param_table$parameter) ~ "Log spatial range parameter",
@@ -353,7 +354,7 @@ pair_df <- data.frame(
 
 # Code up color by survey data availability
 year_key <- rep(year_set, each = dim(eps_array))
-year_key <- case_when(year_key %in% c(2007, 2008) ~ "no AVO",
+year_key <- case_when( # year_key %in% c(2007, 2008) ~ "no AVO",
                       year_key %in% c(2011, 2013, 2015, 2017) ~ "no AT",
                       TRUE ~ "all surveys")
 
