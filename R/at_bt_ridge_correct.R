@@ -40,7 +40,7 @@ if (!requireNamespace("ggsidekick", quietly = TRUE)) {
 library(ggsidekick)
 theme_set(theme_sleek())
 
-results_dir <- here("Results", "new_avo_years")
+results_dir <- here("Results", "residuals")
 if (!dir.exists(results_dir)) {
   dir.create(results_dir, recursive = TRUE)
 }
@@ -356,7 +356,7 @@ for (i in seq_len(n_sims)) {
 simulated_residuals <- createDHARMa(
   simulatedResponse = simulated_data,
   observedResponse = b_i,
-  fittedPredictedResponse = yhat,
+  fittedPredictedResponse = rep$yhat,
   integerResponse = FALSE
 )
 
