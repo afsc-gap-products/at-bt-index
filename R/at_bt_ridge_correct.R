@@ -39,7 +39,7 @@ if (!requireNamespace("ggsidekick", quietly = TRUE)) {
 library(ggsidekick)
 theme_set(theme_sleek())
 
-results_dir <- here("Results", "new_avo_years")
+results_dir <- here("Results", "no_avo_all")
 if (!dir.exists(results_dir)) {
   dir.create(results_dir, recursive = TRUE)
 }
