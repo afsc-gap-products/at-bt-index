@@ -202,3 +202,37 @@ ggsave(
     filename = here::here("output", "figures", "index_depth_compare.png"),
     width = 8, height = 5, units = "in", dpi = 300
   )
+
+# Total biomass by survey (compared to assessment index) ----------------------
+index_gear <- bind_rows(
+  read.csv(here("Results", "new_avo_years", "index_depth.csv")) %>%
+    mutate(Gear = case_when(
+      Height %in% c("<0.5m", "0.5-3m", "3-16m") ~ "BT",
+      Height %in% c("0.5-3m", "3-16m", ">16m") ~ "AT"
+    )) %>%
+    summarize(
+      .by = c(Year, Gear),
+      Estimate = sum(Estimate),
+      SD = sum(SD)
+    ) %>%
+    mutate(Model = "All Surveys"),
+  read.csv(here("Results", "no AVO updated", "index_depth.csv")) %>%
+    mutate(Gear = case_when(
+      Height %in% c("<0.5m", "0.5-3m", "3-16m") ~ "BT",
+      Height %in% c("0.5-3m", "3-16m", ">16m") ~ "AT"
+    )) %>%
+    summarize(
+      .by = c(Year, Gear) %>%
+      Estimate = sum(Estimate),
+      SD = sum(SD)
+    ) %>%
+    mutate(Model = "No AVO")
+)
+
+ggplot(index_gear) + 
+  geom_line(aes(x = Year, y = Estimate, color = Model)) +
+  geom_ribbon(aes(x = Year, ymin = (Estimate - 2 * SD), ymax = (Estimate + 2 * SD), fill = Model), alpha = 0.4) +
+  scale_fill_viridis(na.value = NA, option = "inferno", discrete = TRUE, begin = 0.2, end = 0.7) +
+  scale_color_viridis(na.value = NA, option = "inferno", discrete = TRUE, begin = 0.2, end = 0.7) +
+  ylab("Index of Abundance (Mt)") + xlab("") +
+  facet_wrap(~ Gear, ncol = 1)
