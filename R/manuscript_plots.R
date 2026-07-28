@@ -210,43 +210,63 @@ index_gear <- bind_rows(
       Height %in% c("<0.5m", "0.5-3m", "3-16m") ~ "BT",
       Height %in% c("0.5-3m", "3-16m", ">16m") ~ "AT"
     )) %>%
-    summarize(
-      .by = c(Year, Gear),
-      Estimate = sum(Estimate),
-      SD = sum(SD)
-    ) %>%
     mutate(Model = "All Surveys"),
   read.csv(here("Results", "no AVO updated", "index_depth.csv")) %>%
     mutate(Gear = case_when(
       Height %in% c("<0.5m", "0.5-3m", "3-16m") ~ "BT",
       Height %in% c("0.5-3m", "3-16m", ">16m") ~ "AT"
-    )) %>%
-    summarize(
-      .by = c(Year, Gear) %>%
-      Estimate = sum(Estimate),
-      SD = sum(SD)
-    ) %>%
+    )) %>% 
     mutate(Model = "No AVO")
-)
+) %>%
+  summarize(
+    .by = c(Year, Gear, Model),
+    Estimate = sum(Estimate),
+    SD = sum(SD)
+  ) %>%
+  mutate(
+    lwr = Estimate - 2 * SD,
+    upr = Estimate + 2 * SD
+  ) %>%
+  select(Year, Gear, Model, Estimate, lwr, upr)
 
 bt_index <- readRDS(here("data", "indices.RDS")) %>% 
   filter(stratum == "EBS") %>%
   filter(year %in% min(index_gear$Year):max(index_gear$Year)) %>%
   mutate(
-    est = est / 1e9, 
+    Estimate = est / 1e9, 
     lwr = lwr / 1e9,
     upr = upr / 1e9
   ) %>%
-  mutate(Gear = "BT")
+  mutate(
+    Year = year,
+    Gear = "BT",
+    Model = "Estimate / Index"
+  ) %>%
+  select(Year, Gear, Model, Estimate, lwr, upr)
 
-ggplot(index_gear) + 
-  geom_line(aes(x = Year, y = Estimate, color = Model)) +
-  geom_ribbon(aes(x = Year, ymin = (Estimate - 2 * SD), ymax = (Estimate + 2 * SD), fill = Model), alpha = 0.4) +
-  geom_ribbon(data = bt_index,
-              aes(x = year, ymin = lwr, ymax = upr), fill = "#c107f5", alpha = 0.2) +
-  geom_line(data = bt_index,
-            aes(x = year, y = est), color = "#c107f5") +
-  scale_fill_viridis(na.value = NA, option = "inferno", discrete = TRUE, begin = 0.2, end = 0.7) +
-  scale_color_viridis(na.value = NA, option = "inferno", discrete = TRUE, begin = 0.2, end = 0.7) +
-  ylab("Index of Abundance (Mt)") + xlab("") +
-  facet_wrap(~ Gear, ncol = 1)
+at_index <- read.csv(here("data", "2025", "at_estimate.csv")) %>%
+  filter(Year %in% min(index_gear$Year):max(index_gear$Year)) %>%
+  mutate(
+    lwr = Estimate - Estimate * Error,
+    upr = Estimate + Estimate * Error,
+    Gear = "AT",
+    Model = "Estimate / Index"
+  ) %>%
+  select(Year, Gear, Model, Estimate, lwr, upr)
+
+all_indices <- bind_rows(index_gear, bt_index, at_index) %>%
+  ggplot() + 
+    geom_line(aes(x = Year, y = Estimate, color = Model), alpha = 0.2) +
+    # geom_errorbar(aes(x = Year, y = Estimate, ymin = lwr, ymax = upr, color = Model), width = 0.2) +
+    geom_pointrange(aes(x = Year, y = Estimate, ymin = lwr, ymax = upr, color = Model)) +
+    scale_color_viridis(na.value = NA, option = "inferno", discrete = TRUE, begin = 0.2, end = 0.7) +
+    ylab("Index of Abundance (Mt)") + 
+    xlab("") +
+    facet_wrap(~ Gear, ncol = 1)
+all_indices
+
+ggsave(
+    all_indices,
+    filename = here::here("output", "figures", "all_indices.png"),
+    width = 7, height = 7, units = "in", dpi = 300
+  )
