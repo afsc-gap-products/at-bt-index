@@ -229,9 +229,23 @@ index_gear <- bind_rows(
     mutate(Model = "No AVO")
 )
 
+bt_index <- readRDS(here("data", "indices.RDS")) %>% 
+  filter(stratum == "EBS") %>%
+  filter(year %in% min(index_gear$Year):max(index_gear$Year)) %>%
+  mutate(
+    est = est / 1e9, 
+    lwr = lwr / 1e9,
+    upr = upr / 1e9
+  ) %>%
+  mutate(Gear = "BT")
+
 ggplot(index_gear) + 
   geom_line(aes(x = Year, y = Estimate, color = Model)) +
   geom_ribbon(aes(x = Year, ymin = (Estimate - 2 * SD), ymax = (Estimate + 2 * SD), fill = Model), alpha = 0.4) +
+  geom_ribbon(data = bt_index,
+              aes(x = year, ymin = lwr, ymax = upr), fill = "#c107f5", alpha = 0.2) +
+  geom_line(data = bt_index,
+            aes(x = year, y = est), color = "#c107f5") +
   scale_fill_viridis(na.value = NA, option = "inferno", discrete = TRUE, begin = 0.2, end = 0.7) +
   scale_color_viridis(na.value = NA, option = "inferno", discrete = TRUE, begin = 0.2, end = 0.7) +
   ylab("Index of Abundance (Mt)") + xlab("") +
