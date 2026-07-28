@@ -8,7 +8,6 @@ library(viridis)
 library(sf)
 library(rnaturalearth)
 
-
 # Set ggplot theme
 # if (!requireNamespace("ggsidekick", quietly = TRUE)) {
 #   devtools::install_github("seananderson/ggsidekick")
@@ -128,4 +127,78 @@ ggsave(
     filename = here::here("output", "figures", "combined_density.png"),
     width = 11, height = 5, units = "in", dpi = 300
   )
-  
+ 
+# Comparison plots of the model with and without AVO --------------------------
+# Proportion available by depth
+depth_prop <- bind_rows(
+  bind_cols(
+    read.csv(here("Results", "new_avo_years", "availability_depth.csv")), 
+    Model = "All Surveys"),
+  bind_cols(
+    read.csv(here("Results", "no AVO updated", "availability_depth.csv")),
+    Model = "No AVO"
+  )
+) %>%
+  mutate(Height = factor(Height, levels = c(">16m", "3-16m", "0.5-3m", "<0.5m"))) %>%
+  ggplot(.) +
+  geom_bar(aes(x = Year, y = Proportion, fill = Height), 
+           position = "fill", stat = "identity") +
+  scale_fill_viridis(option = "mako", discrete = TRUE, direction = -1, begin = 0.1, end = 0.9) +
+  facet_wrap(~ Model, ncol = 1)
+depth_prop
+
+ggsave(
+    depth_prop,
+    filename = here::here("output", "figures", "depth_proportion.png"),
+    width = 5, height = 5, units = "in", dpi = 300
+  )
+
+# Proportion available by gear type
+gear_prop <- bind_rows(
+  bind_cols(
+    read.csv(here("Results", "new_avo_years", "availability_gear.csv")), 
+    Model = "All Surveys"),
+  bind_cols(
+    read.csv(here("Results", "no AVO updated", "availability_gear.csv")),
+    Model = "No AVO"
+  )
+) %>%
+  ggplot(.) +
+  geom_line(aes(x = Year, y = Proportion, color = Model)) +
+  geom_ribbon(aes(x = Year, ymin = (Proportion - 2 * SD), ymax = (Proportion + 2 * SD), fill = Model), alpha = 0.4) +
+  scale_fill_viridis(na.value = NA, option = "inferno", discrete = TRUE, begin = 0.2, end = 0.7) +
+  scale_color_viridis(na.value = NA, option = "inferno", discrete = TRUE, begin = 0.2, end = 0.7) +
+  facet_wrap(~ Gear, ncol = 1)
+gear_prop
+
+ggsave(
+    gear_prop,
+    filename = here::here("output", "figures", "gear_proportion.png"),
+    width = 5, height = 5, units = "in", dpi = 300
+  )
+
+# Biomass available by depth
+ind_depth_compare <- bind_rows(
+  bind_cols(
+    read.csv(here("Results", "new_avo_years", "index_depth.csv")), 
+    Model = "All Surveys"),
+  bind_cols(
+    read.csv(here("Results", "no AVO updated", "index_depth.csv")),
+    Model = "No AVO"
+  )
+) %>%
+  mutate(Height = factor(Height, levels = c(">16m", "3-16m", "0.5-3m", "<0.5m"))) %>%
+  ggplot(.) +
+  geom_line(aes(x = Year, y = Estimate, color = Model)) +
+  geom_ribbon(aes(x = Year, ymin = (Estimate - 2 * SD), ymax = (Estimate + 2 * SD), fill = Model), alpha = 0.4) +
+  scale_fill_viridis(na.value = NA, option = "inferno", discrete = TRUE, begin = 0.2, end = 0.7) +
+  scale_color_viridis(na.value = NA, option = "inferno", discrete = TRUE, begin = 0.2, end = 0.7) +
+  ylab("Index of Abundance (Mt)") + xlab("") +
+  facet_wrap(~ Height)
+ind_depth_compare
+
+ggsave(
+    ind_depth_compare,
+    filename = here::here("output", "figures", "index_depth_compare.png"),
+    width = 8, height = 5, units = "in", dpi = 300
+  )

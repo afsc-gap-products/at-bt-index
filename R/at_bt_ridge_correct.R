@@ -517,7 +517,7 @@ avail_depth <- reshape2::melt(avail_depth,
                               id.vars = "Year",
                               variable.name = "Height",
                               value.name = "Proportion") %>%
-  dplyr::mutate(Height = factor(Height, levels = c(">16m", "3-16m", "0.5-3m", "<0.5m")))
+  mutate(Height = factor(Height, levels = c(">16m", "3-16m", "0.5-3m", "<0.5m")))
 
 write.csv(avail_depth, here(results_dir, "availability_depth.csv"), row.names = FALSE)
 
