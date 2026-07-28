@@ -502,8 +502,10 @@ gear_plot <- ggplot() +
              aes(x = Year, y = Proportion, color = Gear, shape = Gear)) +
   geom_ribbon(data = avail_gear, 
               aes(x = Year, ymin = (Proportion - 2 * SD), ymax = (Proportion + 2 * SD), fill = Gear), alpha = 0.4) +
-  scale_color_manual(values = c("#93329E", "#A4C400")) +
-  scale_fill_manual(values = c("#93329E", "#A4C400"))
+  scale_color_manual(values = c("#35a1ab", "#3d5297")) +
+  scale_fill_manual(values = c("#35a1ab", "#3d5297")) +
+  ylim(0, NA) +
+  xlab("")
 gear_plot
 
 ggsave(gear_plot, filename = here(results_dir, "avail_gear_plot.png"),
@@ -524,7 +526,8 @@ write.csv(avail_depth, here(results_dir, "availability_depth.csv"), row.names = 
 depth_plot <- ggplot(avail_depth) +
   geom_bar(aes(x = Year, y = Proportion, fill = Height), 
            position = "fill", stat = "identity") +
-  scale_fill_viridis(option = "mako", discrete = TRUE, direction = -1, begin = 0.1, end = 0.9)
+  scale_fill_viridis(option = "mako", discrete = TRUE, direction = -1, begin = 0.1, end = 0.9) +
+  xlab("")
 depth_plot
 
 ggsave(depth_plot, filename = here(results_dir, "avail_depth_plot.png"),
@@ -567,7 +570,7 @@ ggsave(ind_depth_plot, filename = here(results_dir, "index_depth_plot.png"),
 
 # Combine together ------------------------------------------------------------
 # Both plots together
-avail_both <- cowplot::plot_grid(depth_plot, gear_plot, ncol = 1)
+avail_both <- cowplot::plot_grid(depth_plot, gear_plot, labels = c("A", "B"), ncol = 1)
 avail_both
 
 ggsave(avail_both, filename = here(results_dir, "avail_both.png"),

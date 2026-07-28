@@ -52,7 +52,7 @@ dat_avail <- bind_rows(at, bt, avo) %>%
 ggplot(dat_avail) +
   geom_tile(aes(x = year, y = gear, fill = Available), color = "gray") +
   facet_wrap(~ depth_layer, ncol = 1) +
-  scale_fill_manual(values = c("transparent", "#4c126b")) +
+  scale_fill_manual(values = c("transparent", "#420968")) +
   theme(legend.position = "none") +
   xlab("") + ylab("") +
   theme_sleek()
@@ -193,7 +193,7 @@ ind_depth_compare <- bind_rows(
   geom_ribbon(aes(x = Year, ymin = (Estimate - 2 * SD), ymax = (Estimate + 2 * SD), fill = Model), alpha = 0.4) +
   scale_fill_viridis(na.value = NA, option = "inferno", discrete = TRUE, begin = 0.2, end = 0.7) +
   scale_color_viridis(na.value = NA, option = "inferno", discrete = TRUE, begin = 0.2, end = 0.7) +
-  ylab("Index of Abundance (Mt)") + xlab("") +
+  ylab("Abundance (Mt)") + xlab("") +
   facet_wrap(~ Height)
 ind_depth_compare
 
@@ -255,13 +255,14 @@ at_index <- read.csv(here("data", "2025", "at_estimate.csv")) %>%
   select(Year, Gear, Model, Estimate, lwr, upr)
 
 all_indices <- bind_rows(index_gear, bt_index, at_index) %>%
+  mutate(lwr = pmax(0, lwr)) %>% # Clamp negative lower bounds to 0
   ggplot() + 
     geom_line(aes(x = Year, y = Estimate, color = Model), alpha = 0.2) +
     # geom_errorbar(aes(x = Year, y = Estimate, ymin = lwr, ymax = upr, color = Model), width = 0.2) +
     geom_pointrange(aes(x = Year, y = Estimate, ymin = lwr, ymax = upr, color = Model)) +
     scale_color_viridis(na.value = NA, option = "inferno", discrete = TRUE, begin = 0.2, end = 0.7) +
-    ylab("Index of Abundance (Mt)") + 
-    xlab("") +
+    ylab("Abundance (Mt)") + xlab("") +
+    coord_cartesian(ylim = c(0, NA)) +
     facet_wrap(~ Gear, ncol = 1)
 all_indices
 
