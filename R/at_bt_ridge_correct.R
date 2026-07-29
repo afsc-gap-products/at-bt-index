@@ -27,6 +27,7 @@ library(dplyr)
 library(remotes)
 library(reshape2)
 library(tidyr)
+library(DHARMa)
 
 if (!requireNamespace("akgfmaps", quietly = TRUE)) {
   pak::pkg_install("afsc-gap-products/akgfmaps")
@@ -39,7 +40,7 @@ if (!requireNamespace("ggsidekick", quietly = TRUE)) {
 library(ggsidekick)
 theme_set(theme_sleek())
 
-results_dir <- here("Results", "new_avo_years")
+results_dir <- here("Results", "residuals")
 if (!dir.exists(results_dir)) {
   dir.create(results_dir, recursive = TRUE)
 }
@@ -129,22 +130,25 @@ jnll_spde <- function(parlist, what = "jnll") {
   # Likelihood terms
   # For the following lines: 1 = <0.5m, 2 = 0.5-3m, 3 = 3-16m, 4 = >16m
   nll_prior = nll_beta = nll_data = nll_epsilon = nll_omega = 0
+  yhat <- numeric(length(b_i))  # <--- Initialize vector here
+
   for(i in seq_along(b_i)) {
     # BT covers all intervals from <0.5 to the effective fishing height (16m)
     if(Gear[i] == "BT") {
-      yhat <- exp(ln_q + sum(A_is[i, ] * epsilon_sct[, 1, t_i[i]]) + beta_ct[1, t_i[i]] + mu_c[1] + omega_ic[i, 1]) + 
-        exp(ln_q + sum(A_is[i, ] * epsilon_sct[, 2, t_i[i]]) + beta_ct[2, t_i[i]] + mu_c[2] + omega_ic[i, 2]) +
-        exp(ln_q + sum(A_is[i, ] * epsilon_sct[, 3, t_i[i]]) + beta_ct[3, t_i[i]] + mu_c[3] + omega_ic[i, 3])
+      yhat[i] <- exp(ln_q + sum(A_is[i, ] * epsilon_sct[, 1, t_i[i]]) + beta_ct[1, t_i[i]] + mu_c[1] + omega_ic[i, 1]) + 
+                exp(ln_q + sum(A_is[i, ] * epsilon_sct[, 2, t_i[i]]) + beta_ct[2, t_i[i]] + mu_c[2] + omega_ic[i, 2]) +
+                exp(ln_q + sum(A_is[i, ] * epsilon_sct[, 3, t_i[i]]) + beta_ct[3, t_i[i]] + mu_c[3] + omega_ic[i, 3])
     }
     # AT disaggregated into 0.5-3, 3-16, and >16
-    if(Gear[i] == "AT1") yhat <- exp(sum(A_is[i, ] * epsilon_sct[, 2, t_i[i]]) + beta_ct[2, t_i[i]] + mu_c[2] + omega_ic[i, 2])
-    if(Gear[i] == "AT2") yhat <- exp(sum(A_is[i, ] * epsilon_sct[, 3, t_i[i]]) + beta_ct[3, t_i[i]] + mu_c[3] + omega_ic[i, 3]) 
-    if(Gear[i] == "AT3") yhat <- exp(sum(A_is[i, ] * epsilon_sct[, 4,t_i[i]]) + beta_ct[4, t_i[i]] + mu_c[4] + omega_ic[i, 4])
+    if(Gear[i] == "AT1") yhat[i] <- exp(sum(A_is[i, ] * epsilon_sct[, 2, t_i[i]]) + beta_ct[2, t_i[i]] + mu_c[2] + omega_ic[i, 2])
+    if(Gear[i] == "AT2") yhat[i] <- exp(sum(A_is[i, ] * epsilon_sct[, 3, t_i[i]]) + beta_ct[3, t_i[i]] + mu_c[3] + omega_ic[i, 3]) 
+    if(Gear[i] == "AT3") yhat[i] <- exp(sum(A_is[i, ] * epsilon_sct[, 4, t_i[i]]) + beta_ct[4, t_i[i]] + mu_c[4] + omega_ic[i, 4])
     # AVO only available for 3-16 and >16
-    if(Gear[i] == "AVO2") yhat <- exp(sum(A_is[i, ] * epsilon_sct[, 3, t_i[i]]) + beta_ct[3, t_i[i]] + mu_c[3] + omega_ic[i, 3] + log_catchability)
-    if(Gear[i] == "AVO3") yhat <- exp(sum(A_is[i, ] * epsilon_sct[, 4, t_i[i]]) + beta_ct[4, t_i[i]] + mu_c[4] + omega_ic[i, 4] + log_catchability)
+    if(Gear[i] == "AVO2") yhat[i] <- exp(sum(A_is[i, ] * epsilon_sct[, 3, t_i[i]]) + beta_ct[3, t_i[i]] + mu_c[3] + omega_ic[i, 3] + log_catchability)
+    if(Gear[i] == "AVO3") yhat[i] <- exp(sum(A_is[i, ] * epsilon_sct[, 4, t_i[i]]) + beta_ct[4, t_i[i]] + mu_c[4] + omega_ic[i, 4] + log_catchability)
+    
     nll_data <- nll_data - RTMB:::Term(dtweedie(x = b_i[i], 
-                                                mu = yhat, 
+                                                mu = yhat[i], 
                                                 phi = phi,
                                                 p = p, 
                                                 log = TRUE))
@@ -218,6 +222,7 @@ jnll_spde <- function(parlist, what = "jnll") {
   REPORT(index_ct)
   REPORT(D_gct)
   REPORT(epsilon_gct)
+  REPORT(yhat)
   REPORT(Ptrawl_t)
   REPORT(Paccoustic_t)
   REPORT(Btrawl_t)
@@ -337,6 +342,89 @@ prop_ct <- sweep(index_ct, MARGIN = 2, STAT = colSums(index_ct), FUN = "/")
 
 prop_bt <- colSums(index_ct[1:3, ]) / colSums(index_ct)
 prop_at <- colSums(index_ct[2:4, ]) / colSums(index_ct)
+
+# Residuals -------------------------------------------------------------------
+# Get model outputs and fitted values
+yhat <- rep$yhat 
+
+# Extract Tweedie parameters
+p <- plogis(opt$par["invf_p"]) + 1  # transform back to (1, 2)
+phi <- exp(opt$par["ln_phi"])  # dispersion
+
+# Simulate from Tweedie distribution using yhat
+n_sims <- 250
+simulated_data <- matrix(NA, nrow = length(b_i), ncol = n_sims)
+
+for (i in seq_len(n_sims)) {
+  # rtweedie accepts a vector for mu
+  simulated_data[, i] <- tweedie::rtweedie(
+    n = length(b_i), 
+    mu = yhat, 
+    phi = phi, 
+    power = p
+  )
+}
+
+# Create DHARMa residuals
+simulated_residuals <- createDHARMa(
+  simulatedResponse = simulated_data,
+  observedResponse = b_i,
+  fittedPredictedResponse = yhat,
+  integerResponse = TRUE  # prevent artificial stacking from exact 0s
+)
+
+# Standard DHARMa diagnostic plots (Q-Q plot, residuals vs. fitted)
+plot(simulated_residuals)
+
+# # Tests for 'bad' q-q plot
+# # Run robust bootstrap outlier test, looking for p > 0.05
+# testOutliers(simulated_residuals, type = "bootstrap")
+
+# # Try KS test on a random subset of 300 points, looking for p close to 0.05
+# sub_idx <- sample(1:length(b_i), 300)
+# ks.test(dharma_residuals[sub_idx], "punif")
+
+# Create dataframe with spatial info
+residuals_df <- data.frame(
+  Lon = dat$Lon,
+  Lat = dat$Lat,
+  Year = dat$Year,
+  Residual = residuals(simulated_residuals)
+)
+
+# Convert residuals to sf points
+residuals_sf <- st_as_sf(residuals_df, coords = c("Lon", "Lat"), crs = 4326)
+
+# Prepare grid polygon sf object
+plotgrid <- st_sf(geometry = grid, crs = st_crs(grid))
+plotgrid$id <- 1:nrow(plotgrid)
+
+# Ensure CRS match for spatial join
+residuals_sf <- st_transform(residuals_sf, st_crs(plotgrid))
+
+# Spatial join: assign grid cell 'id' directly to each point
+grid_residuals <- st_join(residuals_sf, plotgrid["id"]) |>
+  st_drop_geometry() |>
+  group_by(id, Year) |>
+  summarise(Residual = mean(Residual, na.rm = TRUE), .groups = "drop")
+
+# Merge mean residuals back to the grid for plotting
+plotgrid_residuals <- left_join(plotgrid, grid_residuals, by = "id") |>
+  filter(!is.na(Residual))
+
+# Plot map
+ggplot(plotgrid_residuals) +
+  geom_sf(aes(fill = Residual, color = Residual)) +
+  scale_fill_viridis(limits = c(0, 1)) + 
+  scale_color_viridis(limits = c(0, 1)) +
+  facet_wrap(~Year) +
+  labs(fill = "DHARMa Residual", color = "DHARMa Residual") +
+  theme(axis.title = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank())
+
+ggsave(filename = here(results_dir, "residuals_map.png"),
+       width = 8, height = 5, units = "in", dpi = 300)
 
 # Predicted random effects ----------------------------------------------------
 eps_array <- as.list(sdrep, report = FALSE, what = "Estimate")$epsilon_sct
