@@ -389,6 +389,7 @@ residuals_df <- data.frame(
   Lon = dat$Lon,
   Lat = dat$Lat,
   Year = dat$Year,
+  Gear = dat$Gear,
   Residual = residuals(simulated_residuals)
 )
 
@@ -403,28 +404,39 @@ plotgrid$id <- 1:nrow(plotgrid)
 residuals_sf <- st_transform(residuals_sf, st_crs(plotgrid))
 
 # Spatial join: assign grid cell 'id' directly to each point
-grid_residuals <- st_join(residuals_sf, plotgrid["id"]) |>
-  st_drop_geometry() |>
-  group_by(id, Year) |>
-  summarise(Residual = mean(Residual, na.rm = TRUE), .groups = "drop")
+grid_residuals <- st_join(residuals_sf, plotgrid["id"]) %>%
+  st_drop_geometry() %>%
+  summarise(
+  .by = c(id, Year, Gear),
+  Residual = mean(Residual, na.rm = TRUE)
+  )
 
 # Merge mean residuals back to the grid for plotting
 plotgrid_residuals <- left_join(plotgrid, grid_residuals, by = "id") |>
   filter(!is.na(Residual))
 
 # Plot map
-ggplot(plotgrid_residuals) +
-  geom_sf(aes(fill = Residual, color = Residual)) +
-  scale_fill_viridis(limits = c(0, 1)) + 
-  scale_color_viridis(limits = c(0, 1)) +
-  facet_wrap(~Year) +
-  labs(fill = "DHARMa Residual", color = "DHARMa Residual") +
-  theme(axis.title = element_blank(),
-        axis.text = element_blank(),
-        axis.ticks = element_blank())
+gears <- unique(plotgrid_residuals$Gear)
+for(i in 1:length(gears)) {
+  ggplot(plotgrid_residuals %>% filter(Gear == gears[i])) +
+    geom_sf(aes(fill = Residual, color = Residual)) +
+    scale_fill_viridis(limits = c(0, 1)) + 
+    scale_color_viridis(limits = c(0, 1)) +
+    facet_wrap(~Year) +
+    labs(
+      fill = "DHARMa Residual", 
+      color = "DHARMa Residual", 
+      title = gears[i]
+    ) +
+    theme(
+      axis.title = element_blank(),
+      axis.text = element_blank(),
+      axis.ticks = element_blank()
+    ) 
 
-ggsave(filename = here(results_dir, "residuals_map.png"),
-       width = 8, height = 5, units = "in", dpi = 300)
+  ggsave(filename = here(results_dir, paste0("residuals_", gears[i], ".png")),
+        width = 8, height = 5, units = "in", dpi = 300)
+}
 
 # Predicted random effects ----------------------------------------------------
 eps_array <- as.list(sdrep, report = FALSE, what = "Estimate")$epsilon_sct
