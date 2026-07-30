@@ -52,7 +52,7 @@ dat_avail <- bind_rows(at, bt, avo) %>%
 ggplot(dat_avail) +
   geom_tile(aes(x = year, y = gear, fill = Available), color = "gray") +
   facet_wrap(~ depth_layer, ncol = 1) +
-  scale_fill_manual(values = c("transparent", "#420968")) +
+  scale_fill_manual(values = c("transparent", "#3d5297")) +
   theme(legend.position = "none") +
   xlab("") + ylab("") +
   theme_sleek()
@@ -91,7 +91,7 @@ spatial_df <- lapply(labels, function(i) {
   df_out <- spatial_results(i) 
   
   ggsave(
-    filename = here::here("output", "figures", paste0("density_", i, ".png")),
+    filename = here("output", "figures", paste0("density_", i, ".png")),
     plot = df_out$plot,
     width = 9, height = 6, units = "in", dpi = 300
   )
@@ -124,9 +124,9 @@ ggplot(combined_df) +
   )
 
 ggsave(
-    filename = here::here("output", "figures", "combined_density.png"),
-    width = 11, height = 5, units = "in", dpi = 300
-  )
+  filename = here("output", "figures", "combined_density.png"),
+  width = 11, height = 5, units = "in", dpi = 300
+)
  
 # Comparison plots of the model with and without AVO --------------------------
 # Proportion available by depth
@@ -148,10 +148,10 @@ depth_prop <- bind_rows(
 depth_prop
 
 ggsave(
-    depth_prop,
-    filename = here::here("output", "figures", "depth_proportion.png"),
-    width = 5, height = 5, units = "in", dpi = 300
-  )
+  depth_prop,
+  filename = here("output", "figures", "depth_proportion.png"),
+  width = 5, height = 5, units = "in", dpi = 300
+)
 
 # Proportion available by gear type
 gear_prop <- bind_rows(
@@ -164,18 +164,19 @@ gear_prop <- bind_rows(
   )
 ) %>%
   ggplot(.) +
-  geom_line(aes(x = Year, y = Proportion, color = Model)) +
-  geom_ribbon(aes(x = Year, ymin = (Proportion - 2 * SD), ymax = (Proportion + 2 * SD), fill = Model), alpha = 0.4) +
-  scale_fill_viridis(na.value = NA, option = "inferno", discrete = TRUE, begin = 0.2, end = 0.7) +
-  scale_color_viridis(na.value = NA, option = "inferno", discrete = TRUE, begin = 0.2, end = 0.7) +
-  facet_wrap(~ Gear, ncol = 1)
+    geom_line(aes(x = Year, y = Proportion, color = Model)) +
+    geom_ribbon(aes(x = Year, ymin = (Proportion - 2 * SD), ymax = (Proportion + 2 * SD), fill = Model), alpha = 0.4) +
+    scale_fill_viridis(na.value = NA, option = "inferno", discrete = TRUE, begin = 0.2, end = 0.7) +
+    scale_color_viridis(na.value = NA, option = "inferno", discrete = TRUE, begin = 0.2, end = 0.7) +
+    facet_wrap(~ Gear, ncol = 1) +
+    xlab("")
 gear_prop
 
 ggsave(
-    gear_prop,
-    filename = here::here("output", "figures", "gear_proportion.png"),
-    width = 5, height = 5, units = "in", dpi = 300
-  )
+  gear_prop,
+  filename = here("output", "figures", "gear_proportion.png"),
+  width = 5, height = 5, units = "in", dpi = 300
+)
 
 # Biomass available by depth
 ind_depth_compare <- bind_rows(
@@ -198,10 +199,10 @@ ind_depth_compare <- bind_rows(
 ind_depth_compare
 
 ggsave(
-    ind_depth_compare,
-    filename = here::here("output", "figures", "index_depth_compare.png"),
-    width = 8, height = 5, units = "in", dpi = 300
-  )
+  ind_depth_compare,
+  filename = here("output", "figures", "index_depth_compare.png"),
+  width = 8, height = 5, units = "in", dpi = 300
+)
 
 # Total biomass by survey (compared to assessment index) ----------------------
 index_gear <- bind_rows(
@@ -257,9 +258,9 @@ at_index <- read.csv(here("data", "2025", "at_estimate.csv")) %>%
 all_indices <- bind_rows(index_gear, bt_index, at_index) %>%
   mutate(lwr = pmax(0, lwr)) %>% # Clamp negative lower bounds to 0
   ggplot() + 
-    geom_line(aes(x = Year, y = Estimate, color = Model), alpha = 0.2) +
+    # geom_line(aes(x = Year, y = Estimate, color = Model), alpha = 0.2) +
     # geom_errorbar(aes(x = Year, y = Estimate, ymin = lwr, ymax = upr, color = Model), width = 0.2) +
-    geom_pointrange(aes(x = Year, y = Estimate, ymin = lwr, ymax = upr, color = Model)) +
+    geom_pointrange(aes(x = Year, y = Estimate, ymin = lwr, ymax = upr, color = Model), position = position_dodge(width = 0.4)) +
     scale_color_viridis(na.value = NA, option = "inferno", discrete = TRUE, begin = 0.2, end = 0.7) +
     ylab("Abundance (Mt)") + xlab("") +
     coord_cartesian(ylim = c(0, NA)) +
@@ -267,7 +268,16 @@ all_indices <- bind_rows(index_gear, bt_index, at_index) %>%
 all_indices
 
 ggsave(
-    all_indices,
-    filename = here::here("output", "figures", "all_indices.png"),
-    width = 7, height = 7, units = "in", dpi = 300
-  )
+  all_indices,
+  filename = here("output", "figures", "all_indices.png"),
+  width = 7, height = 7, units = "in", dpi = 300
+)
+
+# Proportion by gear type and total index value vs. real life
+cowplot::plot_grid(gear_prop, all_indices, ncol = 2, labels = c("A", "B"))
+
+ggsave(
+  filename = here("output", "figures", "compare_models.png"),
+  width = 11, height = 6, units = "in", dpi = 300
+)
+
