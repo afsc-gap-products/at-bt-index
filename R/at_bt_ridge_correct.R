@@ -40,7 +40,7 @@ if (!requireNamespace("ggsidekick", quietly = TRUE)) {
 library(ggsidekick)
 theme_set(theme_sleek())
 
-results_dir <- here("Results", "residuals")
+results_dir <- here("Results", "base_20260803")
 if (!dir.exists(results_dir)) {
   dir.create(results_dir, recursive = TRUE)
 }
@@ -74,7 +74,6 @@ if(!file.exists(here("data", "ebs_grid.Rdata"))) {
 
 grid_proj <- st_transform(grid, 3338)  # Reproject grid for accurate centroids
 centroids <- st_centroid(grid_proj)
-
 centroids <- st_transform(centroids, 4326) # Transform centroids back to lon/lat
 extrap <- st_coordinates(centroids)
 extrap <- cbind(Lon = extrap[, 1], 
