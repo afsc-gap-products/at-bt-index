@@ -1,11 +1,4 @@
-#' Minimal example: AT-BT abundance index model estimation
-#' 
-#' Core workflow for Eastern Bering Sea walleye pollock abundance index.
-#' Combines biomass estimates from acoustic trawl (AT) and bottom trawl (BT)
-#' surveys using a spatiotemporal model.
-#'
-#' Reference: Monnahan et al. (2020) ICES J. Mar. Sci. 78(5):1826-1835
-#' https://academic.oup.com/icesjms/article/78/5/1826/6278035
+# Model, without diagnostics and plotting, from at_bt_ridge_correct.R
 
 library(RTMB)
 library(fmesher)
