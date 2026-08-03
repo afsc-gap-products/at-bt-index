@@ -40,7 +40,7 @@ if (!requireNamespace("ggsidekick", quietly = TRUE)) {
 library(ggsidekick)
 theme_set(theme_sleek())
 
-results_dir <- here("Results", "base_20260803")
+results_dir <- here("Results", "base")
 if (!dir.exists(results_dir)) {
   dir.create(results_dir, recursive = TRUE)
 }
@@ -304,17 +304,15 @@ param_table <- as.data.frame(summary(sdrep, "fixed")) %>%
 # Set parameter names
 param_table$parameter <- rownames(param_table)
 rownames(param_table) <- NULL
+
 param_table$description <- case_when(
-  grepl("mu_c", param_table$parameter) ~ "Depth interval intercept",
+  grepl("mu_c", param_table$parameter) ~ "Median for layer",
   grepl("log_catchability", param_table$parameter) ~ "Log catchability for AVO",
-  grepl("beta_ct", param_table$parameter) ~ "Depth interval year effect",
-  grepl("ln_q", param_table$parameter) ~ "Log catchability (AVO vs BT/AT)",
-  grepl("ln_kappa", param_table$parameter) ~ "Log spatial range parameter",
-  grepl("ln_tau_omega", param_table$parameter) ~ "Log precision of spatial random effect",
-  grepl("ln_tau_epsilon", param_table$parameter) ~ "Log precision of spatio-temporal random effect",
-  grepl("ln_phi", param_table$parameter) ~ "Log Tweedie dispersion parameter",
-  grepl("invf_p", param_table$parameter) ~ "Inverse logit Tweedie p parameter",
-  grepl("invf_rho", param_table$parameter) ~ "Rho (temporal autocorrelation)",
+  grepl("ln_kappa", param_table$parameter) ~ "Spatial decorrelation rate",
+  grepl("ln_tau_omega", param_table$parameter) ~ "Spatial variance per distance",
+  grepl("ln_tau_epsilon", param_table$parameter) ~ "Spatio-temporal variance per distance",
+  grepl("ln_phi", param_table$parameter) ~ "Tweedie dispersion parameter",
+  grepl("invf_p", param_table$parameter) ~ "Tweedie power parameter",
   grepl("ln_sd", param_table$parameter) ~ "Log SD of AR(1) process for beta_ct"
 )
 
