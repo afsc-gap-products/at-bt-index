@@ -1,11 +1,7 @@
 # Model, without diagnostics and plotting, from at_bt_ridge_correct.R
 
-library(RTMB)
-library(fmesher)
-library(Matrix)
-library(sf)
-library(here)
-library(dplyr)
+install <- "minimal"
+source("R/requirements.R")
 
 # Data, mesh, parameter setup -------------------------------------------------
 year <- 2025
@@ -225,4 +221,4 @@ sdrep <- sdreport(obj,
                   getReportCovariance = TRUE)
 rep <- obj$report()
 
-save(obj, opt, parlist, Hess, biascor, sdrep, rep, year_set, file = here(results_dir, "model.RData"))
+# save(obj, opt, parlist, Hess, biascor, sdrep, rep, year_set, file = here(results_dir, "model.RData"))

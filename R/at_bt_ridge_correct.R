@@ -16,34 +16,8 @@
 #' 
 #' Code updated and maintained by Sophia Wassermann
 
-library(RTMB)
-library(fmesher)
-library(Matrix)
-library(sf)
-library(viridis)
-library(here)
-library(ggplot2)
-library(dplyr)
-library(remotes)
-library(reshape2)
-library(tidyr)
-library(DHARMa)
-
-if (!requireNamespace("akgfmaps", quietly = TRUE)) {
-  pak::pkg_install("afsc-gap-products/akgfmaps")
-}
-
-# Set ggplot theme
-if (!requireNamespace("ggsidekick", quietly = TRUE)) {
-  pak::pkg_install("seananderson/ggsidekick")
-}
-library(ggsidekick)
-theme_set(theme_sleek())
-
-results_dir <- here("Results", "base")
-if (!dir.exists(results_dir)) {
-  dir.create(results_dir, recursive = TRUE)
-}
+install <- "full"
+source("R/requirements.R")
 
 # Read in data and set up model inputs ----------------------------------------
 year <- 2025  # static for now (but set up for updating annually)
