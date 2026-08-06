@@ -194,10 +194,14 @@ build_obj <- function() {
 
 # Run model -------------------------------------------------------------------
 obj <- build_obj()
+start <- Sys.time()
 opt <- nlminb(obj$par, 
               obj$fn, 
               obj$gr, 
               control = list(iter.max = 1e4, eval.max = 1e4, trace = 1))
+end <- Sys.time()
+fit_time <- difftime(end, start, units = "mins")
+fit_time
 
 parlist <- obj$env$parList()  # parameter estimates
 Hess <- optimHess(opt$par, obj$fn, obj$gr)
