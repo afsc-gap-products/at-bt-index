@@ -22,7 +22,8 @@ full_cran_pkgs <- c(
   "remotes",
   "reshape2",
   "tidyr",
-  "DHARMa"
+  "DHARMa",
+  "tweedie"
 )
 
 # GitHub packages for the full model ("PackageName" = "repo/path")
@@ -58,7 +59,7 @@ if (install == "full") {
 }
 
 # Load installed packages
-pkgs_to_load <- cran_targets
+pkgs_to_load <- cran_targets[cran_targets != "tweedie"]  # breaks model compilation if loaded
 if (install == "full") {
   pkgs_to_load <- c(pkgs_to_load, names(full_github_pkgs))
 }
