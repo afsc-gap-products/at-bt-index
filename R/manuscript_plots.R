@@ -19,6 +19,75 @@ theme_set(theme_sleek())
 world <- rnaturalearth::ne_countries(scale = "medium", returnclass = "sf")
 sf_use_s2(FALSE)  # turn off spherical geometry
 
+# Conceptual model ------------------------------------------------------------
+# Define background rectangle regions (right column shading)
+# rect_data <- data.frame(
+#   xmin = 0.58,
+#   xmax = 1.00,
+#   ymin = c(0, 10, 35, 70),
+#   ymax = c(10, 35, 70, 95),
+#   fill = c("#E3E1EE", "#D5E4EF", "#DCF2EE", "#F3FBF7")
+# )
+
+# # Define horizontal line segments (colored bars)
+# segment_data <- data.frame(
+#   x    = c(0.00, 0.00, 0.00, 0.00),
+#   xend = c(1.00, 1.00, 1.00, 1.00),
+#   y    = c(95, 70, 35, 10),
+#   yend = c(95, 70, 35, 10),
+#   col  = c("#CBEEDD", "#3CAEA3", "#3F82AA", "#473E73")
+# )
+
+# # Define text labels and positions
+# text_data <- data.frame(
+#   x = c(
+#     0.56, 0.56, 0.56, 0.56,  # Left column (right-aligned)
+#     0.60, 0.60, 0.60, 0.60   # Right column (left-aligned)
+#   ),
+#   y = c(
+#     90, 65, 30, 5,
+#     90, 65, 30, 5
+#   ),
+#   label = c(
+#     "AT blind zone", 
+#     "BT effective fishing height", 
+#     "AVO classification limit", 
+#     "AT dead zone",
+#     "<16m from surface", 
+#     "16m off bottom", 
+#     "3m off bottom", 
+#     "<0.5m off bottom"
+#   ),
+#   hjust = c(1, 1, 1, 1, 0, 0, 0, 0),
+#   vjust = c(-4, -1, -1, -1, -4, -1, -1, -1)
+# )
+
+# # Build the plot
+# model <- ggplot() +
+#   # Shaded background blocks on the right
+#   geom_rect(
+#     data = rect_data,
+#     aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax, fill = fill)
+#   ) +
+#   scale_fill_identity() +
+#   # Colored horizontal reference lines
+#   geom_segment(
+#     data = segment_data,
+#     aes(x = x, xend = xend, y = y, yend = yend, color = col),
+#     linewidth = 2.5,
+#     lineend = "square"
+#   ) +
+#   scale_color_identity() +
+#   # Text annotations
+#   geom_text(
+#     data = text_data,
+#     aes(x = x, y = y, label = label, hjust = hjust, vjust = vjust)
+#   ) +
+#   # Coordinate limits and clean white background theme
+#   coord_cartesian(xlim = c(0, 1), ylim = c(0, 100), expand = FALSE) +
+#   theme_void() 
+# model
+
 # Data availability in each depth layer in each year --------------------------
 at <- data.frame(year = 2007:2025, 
                  gear = "AT",
@@ -49,7 +118,7 @@ dat_avail <- bind_rows(at, bt, avo) %>%
          gear = factor(gear, levels = c("BT", "AT", "AVO")),
          Available = factor(available, levels = c(0, 1), labels = c("No", "Yes")))
 
-ggplot(dat_avail) +
+avail <- ggplot(dat_avail) +
   geom_tile(aes(x = year, y = gear, fill = Available), color = "gray") +
   facet_wrap(~ depth_layer, ncol = 1) +
   scale_fill_manual(values = c("transparent", "#3d5297")) +
@@ -57,9 +126,10 @@ ggplot(dat_avail) +
   xlab("") + ylab("") +
   theme_sleek()
 
-ggsave(filename = here("output", "figures", "survey_availability.png"), 
+ggsave(avail, filename = here("output", "figures", "survey_availability.png"), 
        width = 5.5, height = 5, units = "in", dpi = 300)
 
+# cowplot::plot_grid(model, avail, ncol = 2)
 
 # Spatial density -------------------------------------------------------------
 labels = c("0.5", "0.5-3", "3-16", "16") # , "AT", "BT")  # select which to read in
