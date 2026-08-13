@@ -123,11 +123,15 @@ jnll_spde <- function(parlist, what = "jnll") {
     if(Gear[i] == "AVO2") yhat[i] <- exp(sum(A_is[i, ] * epsilon_sct[, 3, t_i[i]]) + beta_ct[3, t_i[i]] + mu_c[3] + omega_ic[i, 3] + log_catchability)
     if(Gear[i] == "AVO3") yhat[i] <- exp(sum(A_is[i, ] * epsilon_sct[, 4, t_i[i]]) + beta_ct[4, t_i[i]] + mu_c[4] + omega_ic[i, 4] + log_catchability)
     
-    nll_data <- nll_data - RTMB:::Term(dtweedie(x = b_i[i], 
-                                                mu = yhat[i], 
-                                                phi = phi,
-                                                p = p, 
-                                                log = TRUE))
+    nll_data <- nll_data - RTMB:::Term(
+      RTMB::dtweedie(
+        x = b_i[i], 
+        mu = yhat[i], 
+        phi = phi,
+        p = p, 
+        log = TRUE
+        )
+      )
   }
   
   for(t_index in 1:max(t_i)) {

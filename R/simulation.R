@@ -3,8 +3,8 @@
 library(here)
 library(sf)
 library(fmesher)
-library(RTMB)
 library(tweedie)
+library(RTMB)
 library(dplyr)
 library(tidyr)
 library(ggplot2)
@@ -17,7 +17,7 @@ theme_set(theme_sleek())
 results_dir <- here("Results", "simulation_test")
 dir.create(results_dir, showWarnings = FALSE, recursive = TRUE)
 
-load(here("Results", "base", "model.RData"))  # Loads obj, opt, parlist, Hess, biascor, sdrep, rep, year_set
+load(here("Results", "test", "model.RData"))  # Loads obj, opt, parlist, Hess, biascor, sdrep, rep, year_set
 
 # Extract true values & set up simulation parameters --------------------------
 true_fixed_pars <- opt$par
@@ -72,7 +72,7 @@ for (s in seq_len(N_SIMS)) {
     )
   }, error = function(e) NULL)
   
-  elapsed <- as.numeric(difftime(Sys.time(), start_sim, units = "secs"))
+  elapsed <- as.numeric(difftime(Sys.time(), start_sim, units = "mins"))
   sim_times[s] <- elapsed
   
   if (is.null(sim_opt)) {
