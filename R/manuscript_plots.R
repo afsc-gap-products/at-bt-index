@@ -134,6 +134,28 @@ ggsave(avail, filename = here("output", "figures", "survey_availability.png"),
 
 # cowplot::plot_grid(model, avail, ncol = 2)
 
+# Sampling locations in selected years ----------------------------------------
+dat_loc <- read.csv(here("data", "2025", "dat_all.csv")) %>%
+  filter(Gear %in% c("AT2", "BT", "AVO2")) %>%
+  mutate(Gear = factor(Gear, levels = c("AT2", "AVO2", "BT"), labels = c("AT", "AVO", "BT"))) 
+
+survey_locations <- ggplot(data = world) +
+  geom_sf() +
+  geom_point(data = dat_loc %>% filter(Year %in% select_years), 
+             aes(x = Lon, y = Lat, color = Gear), size = 0.5) +
+  coord_sf(xlim = c(-179, -157), ylim = c(53.8, 63.5), expand = FALSE) +
+  scale_color_viridis(begin = 0.1, end = 0.9, discrete = TRUE, direction = -1) +
+  theme(axis.title = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        legend.position = "none") +
+  labs(x = NULL, y = NULL) +
+  facet_grid(Gear ~ Year)
+survey_locations
+  
+ggsave(survey_locations, filename = here("output", "figures", "survey_locations.png"),
+       width = 9, height = 4, units = "in", dpi = 300)
+
 # Spatial density -------------------------------------------------------------
 labels = c("0.5", "0.5-3", "3-16", "16") # , "AT", "BT")  # select which to read in
 
