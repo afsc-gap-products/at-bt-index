@@ -19,7 +19,7 @@
 install <- "full"
 source("R/requirements.R")
 
-results_dir <- here("Results", "test")
+results_dir <- here("Results", "Results 8-13-26")
 dir.create(results_dir, showWarnings = FALSE, recursive = TRUE)
 
 # Read in data and set up model inputs ----------------------------------------
@@ -389,9 +389,11 @@ grid_residuals <- st_join(residuals_sf, plotgrid["id"]) %>%
   Residual = mean(Residual, na.rm = TRUE)
   )
 
-# Merge mean residuals back to the grid for plotting
+# Merge mean residuals back to the grid for plotting & save file
 plotgrid_residuals <- left_join(plotgrid, grid_residuals, by = "id") |>
   filter(!is.na(Residual))
+
+saveRDS(plotgrid_residuals, file = here(results_dir, "residuals.RDS"))
 
 # Plot map
 gears <- unique(plotgrid_residuals$Gear)
