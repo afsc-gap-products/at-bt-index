@@ -19,6 +19,9 @@ theme_set(theme_sleek())
 world <- rnaturalearth::ne_countries(scale = "medium", returnclass = "sf")
 sf_use_s2(FALSE)  # turn off spherical geometry
 
+# Select years for plotting (to keep consistent across plots)
+select_years <- c(2007, 2010, 2013, 2017, 2021, 2024)
+
 # Conceptual model ------------------------------------------------------------
 # Define background rectangle regions (right column shading)
 # rect_data <- data.frame(
@@ -177,7 +180,7 @@ combined_df <- bind_rows(spatial_df, .id = "interval") %>%
     levels = c("16", "3-16", "0.5-3", "0.5"), 
     labels = c(">16m", "3-16m", "0.5-3m", "<0.5m")
   )) %>%
-  filter(year %in% c(2007, 2010, 2013, 2017, 2021, 2024))
+  filter(year %in% select_years)
 
 # Single, faceted plot of density
 ggplot(combined_df) +
@@ -199,6 +202,7 @@ ggsave(
 )
  
 # Comparison plots of the model with and without AVO --------------------------
+
 # Proportion available by depth
 depth_prop <- bind_rows(
   bind_cols(
@@ -273,6 +277,7 @@ ggsave(
   filename = here("output", "figures", "index_depth_compare.png"),
   width = 8, height = 5, units = "in", dpi = 300
 )
+
 
 # Total biomass by survey (compared to assessment index) ----------------------
 index_gear <- bind_rows(
@@ -351,3 +356,24 @@ ggsave(
   width = 11, height = 6, units = "in", dpi = 300
 )
 
+# Residuals -------------------------------------------------------------------
+residuals <- readRDS(here("Results", "Results 8-13-26", "residuals.RDS")) %>%
+  filter(Year %in% select_years) %>%
+  mutate(Gear = factor(Gear, levels = c("AT3", "AT2", "AT1", "AVO3", "AVO2", "BT")))
+
+ggplot(residuals) +
+  geom_sf(aes(fill = Residual, color = Residual)) +
+  scale_fill_viridis(limits = c(0, 1)) + 
+  scale_color_viridis(limits = c(0, 1)) +
+  facet_grid(Gear ~ Year) +
+  labs(
+    fill = "DHARMa Residual", 
+    color = "DHARMa Residual") +
+  theme(
+    axis.title = element_blank(),
+    axis.text = element_blank(),
+    axis.ticks = element_blank()
+  ) 
+
+  ggsave(filename = here("output", "figures", "residuals.png"),
+        width = 8, height = 5, units = "in", dpi = 300)
