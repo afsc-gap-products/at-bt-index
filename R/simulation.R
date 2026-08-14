@@ -89,8 +89,6 @@ colnames(estimates_matrix) <- param_names
 se_matrix <- matrix(NA, nrow = N_SIMS, ncol = length(true_fixed_pars))
 colnames(se_matrix) <- param_names
 
-
-
 # Set up model ----------------------------------------------------------------
 jnll_spde <- function(parlist, what = "jnll") {
   "c" <- ADoverload("c")
@@ -201,8 +199,8 @@ jnll_spde <- function(parlist, what = "jnll") {
   
   # reports
   REPORT(index_ct)
-  REPORT(D_gct)
-  REPORT(epsilon_gct)
+  # REPORT(D_gct)
+  # REPORT(epsilon_gct)
   REPORT(Ptrawl_t)
   REPORT(Paccoustic_t)
   REPORT(Btrawl_t)
@@ -210,8 +208,6 @@ jnll_spde <- function(parlist, what = "jnll") {
   REPORT(Btotal_t)
   return(out)
 }
-
-extra_adreport <- FALSE
 
 # 
 map <- list()
@@ -285,7 +281,8 @@ for (s in seq_len(N_SIMS)) {
         estimates_matrix[s, ] <- sim_opt$par
         
         sim_sdrep <- tryCatch({
-          sdreport(sim_obj, par.fixed = sim_opt$par, hessian.fixed = sim_hess, bias.correct = FALSE)
+          sdreport(sim_obj, par.fixed = sim_opt$par, hessian.fixed = sim_hess, 
+                   bias.correct = FALSE, getReportCovariance = FALSE)
         }, error = function(e) NULL)
         
         if (!is.null(sim_sdrep)) {
@@ -294,8 +291,12 @@ for (s in seq_len(N_SIMS)) {
       }
     }
   }
+
+  # Clean up memory after each simulation
+  rm(sim_obj, sim_opt, sim_hess, sim_sdrep)
+  gc(verbose = FALSE)
   
-  cat(sprintf("Done (Conv: %s, Hessian PD: %s, MaxGrad: %.2e, Time: %.1fs)\n",
+  cat(sprintf("Done (Conv: %s, Hessian PD: %s, MaxGrad: %.2e, Time: %.1fm)\n",
               sim_convergence[s], sim_hess_pd[s], sim_max_grad[s], elapsed))
 }
 
@@ -310,7 +311,7 @@ pd_rate   <- mean(sim_hess_pd & sim_convergence) * 100
 cat(sprintf("Total Run Time             : %.2f mins\n", as.numeric(difftime(Sys.time(), start_total_time, units = "mins"))))
 cat(sprintf("Optimizer Convergence Rate : %.1f%%\n", conv_rate))
 cat(sprintf("Positive-Definite Hessian  : %.1f%%\n", pd_rate))
-cat(sprintf("Average Run Time per Fit   : %.2f secs\n\n", mean(sim_times)))
+cat(sprintf("Average Run Time per Fit   : %.2f mins\n\n", mean(sim_times)))
 
 # Performance & Recovery Metrics Dataframe
 valid_runs <- which(sim_convergence & sim_hess_pd)
