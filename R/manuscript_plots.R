@@ -381,21 +381,43 @@ ggsave(
 # Residuals -------------------------------------------------------------------
 residuals <- readRDS(here("Results", "Results 8-13-26", "residuals.RDS")) %>%
   filter(Year %in% select_years) %>%
-  mutate(Gear = factor(Gear, levels = c("AT3", "AT2", "AT1", "AVO3", "AVO2", "BT")))
+  mutate(Gear = factor(Gear, levels = c("AT3", "AT2", "AT1", "AVO3", "AVO2", "BT"))) %>%
+  mutate(
+    coords = st_coordinates(sf::st_cast(geometry, "POINT")),
+    lon = coords[, 1],
+    lat = coords[, 2]
+  ) %>%
+  select(-coords)
 
+# ggplot(residuals) +
+#   geom_sf(aes(fill = Residual, color = Residual)) +
+#   scale_fill_viridis(limits = c(0, 1)) + 
+#   scale_color_viridis(limits = c(0, 1)) +
+#   facet_grid(Gear ~ Year) +
+#   labs(
+#     fill = "DHARMa Residual", 
+#     color = "DHARMa Residual") +
+#   theme(
+#     axis.title = element_blank(),
+#     axis.text = element_blank(),
+#     axis.ticks = element_blank()
+  ) 
 ggplot(residuals) +
-  geom_sf(aes(fill = Residual, color = Residual)) +
-  scale_fill_viridis(limits = c(0, 1)) + 
+  geom_point(data = residuals %>% filter(Year %in% select_years), 
+            aes(x = lon, y = lat, color = Residual), size = 0.4) +
   scale_color_viridis(limits = c(0, 1)) +
   facet_grid(Gear ~ Year) +
-  labs(
-    fill = "DHARMa Residual", 
-    color = "DHARMa Residual") +
+  labs(color = "Residual") +
   theme(
     axis.title = element_blank(),
     axis.text = element_blank(),
     axis.ticks = element_blank()
   ) 
 
-  ggsave(filename = here("output", "figures", "residuals.png"),
-        width = 8, height = 5, units = "in", dpi = 300)
+ggsave(
+  filename = here("output", "figures", "residuals.png"),
+  width = 8, 
+  height = 6, 
+  units = "in", 
+  dpi = 300
+)
