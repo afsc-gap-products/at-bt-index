@@ -243,6 +243,7 @@ for (s in seq_len(N_SIMS)) {
   
   # Build AD function with simulated observations
   sim_obj <- build_obj()
+  grad_val <- NA
   
   # Optimize model with crash protection
   start_sim <- Sys.time()
@@ -268,16 +269,17 @@ for (s in seq_len(N_SIMS)) {
   sim_max_grad[s]    <- max(abs(sim_obj$gr(sim_opt$par)))
   
   # Evaluate Hessian & standard errors
-  if (sim_convergence[s]) {
+  if (sim_convergence[s] && !is.na(grad_val)) {
     sim_hess <- tryCatch({
       optimHess(sim_opt$par, sim_obj$fn, sim_obj$gr)
     }, error = function(e) NULL)
     
-    if (!is.null(sim_hess)) {
-      eigen_vals <- eigen(sim_hess)$values
-      sim_hess_pd[s] <- all(eigen_vals > 0)
+    # Check that Hessian exists AND contains no NA/NaN/Inf values
+    if (!is.null(sim_hess) && !any(!is.finite(sim_hess))) {
+      eigen_vals <- tryCatch({ eigen(sim_hess)$values }, error = function(e) NULL)
       
-      if (sim_hess_pd[s]) {
+      if (!is.null(eigen_vals) && all(eigen_vals > 0)) {
+        sim_hess_pd[s] <- TRUE
         estimates_matrix[s, ] <- sim_opt$par
         
         sim_sdrep <- tryCatch({
@@ -288,7 +290,12 @@ for (s in seq_len(N_SIMS)) {
         if (!is.null(sim_sdrep)) {
           se_matrix[s, ] <- summary(sim_sdrep, "fixed")[, "Std. Error"]
         }
+      } else {
+        sim_hess_pd[s] <- FALSE
       }
+    } else {
+      # Flag Hessian as invalid / non-positive-definite if NaN/Inf occurred
+      sim_hess_pd[s] <- FALSE
     }
   }
 
