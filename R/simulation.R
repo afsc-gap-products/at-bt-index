@@ -17,7 +17,7 @@ theme_set(theme_sleek())
 results_dir <- here("Results", "simulation_test")
 dir.create(results_dir, showWarnings = FALSE, recursive = TRUE)
 
-load(here("Results", "base", "model.RData"))  # Loads obj, opt, parlist, Hess, biascor, sdrep, rep, year_set
+load(here("Results", "Results 8-13-26", "model.RData"))  # Loads obj, opt, parlist, Hess, biascor, sdrep, rep, year_set
 
 # Extract true values & set up simulation parameters --------------------------
 true_fixed_pars <- opt$par
@@ -26,7 +26,7 @@ true_yhat       <- rep$yhat
 true_p          <- plogis(true_fixed_pars["invf_p"]) + 1
 true_phi        <- exp(true_fixed_pars["ln_phi"])
 
-N_SIMS <- 50  # number of simulations
+N_SIMS <- 5  # number of simulations
 set.seed(12345)  # Reproducibility seed for simulation suite
 
 # Read in original observations from data
@@ -233,6 +233,10 @@ start_total_time <- Sys.time()
 for (s in seq_len(N_SIMS)) {
   cat(sprintf("[%s] Simulation Run %d / %d ... ", format(Sys.time(), "%H:%M:%S"), s, N_SIMS))
   
+  # Safe loop variable initialization
+  sim_obj <- sim_opt <- sim_hess <- sim_sdrep <- NULL
+  grad_val <- NA
+  
   # Simulate dataset from Tweedie process
   b_i <<- tweedie::rtweedie(
     n     = length(true_yhat),
@@ -242,8 +246,13 @@ for (s in seq_len(N_SIMS)) {
   )
   
   # Build AD function with simulated observations
-  sim_obj <- build_obj()
-  grad_val <- NA
+  sim_obj <- tryCatch({ build_obj() }, error = function(e) NULL)
+  
+  if (is.null(sim_obj)) {
+    cat("FAILED (Object creation error)\n")
+    sim_convergence[s] <- FALSE
+    next
+  }
   
   # Optimize model with crash protection
   start_sim <- Sys.time()
@@ -266,7 +275,10 @@ for (s in seq_len(N_SIMS)) {
   }
   
   sim_convergence[s] <- (sim_opt$convergence == 0)
-  sim_max_grad[s]    <- max(abs(sim_obj$gr(sim_opt$par)))
+  
+  # FIX: Correctly store the gradient value
+  grad_val <- tryCatch({ max(abs(sim_obj$gr(sim_opt$par))) }, error = function(e) NA)
+  sim_max_grad[s] <- grad_val
   
   # Evaluate Hessian & standard errors
   if (sim_convergence[s] && !is.na(grad_val)) {
@@ -274,7 +286,7 @@ for (s in seq_len(N_SIMS)) {
       optimHess(sim_opt$par, sim_obj$fn, sim_obj$gr)
     }, error = function(e) NULL)
     
-    # Check that Hessian exists AND contains no NA/NaN/Inf values
+    # Check that Hessian exists AND contains finite numeric values
     if (!is.null(sim_hess) && !any(!is.finite(sim_hess))) {
       eigen_vals <- tryCatch({ eigen(sim_hess)$values }, error = function(e) NULL)
       
@@ -294,16 +306,15 @@ for (s in seq_len(N_SIMS)) {
         sim_hess_pd[s] <- FALSE
       }
     } else {
-      # Flag Hessian as invalid / non-positive-definite if NaN/Inf occurred
       sim_hess_pd[s] <- FALSE
     }
   }
-
-  # Clean up memory after each simulation
-  rm(sim_obj, sim_opt, sim_hess, sim_sdrep)
+  
+  # Clean up memory safely after each simulation
+  rm(list = intersect(c("sim_obj", "sim_opt", "sim_hess", "sim_sdrep"), ls()))
   gc(verbose = FALSE)
   
-  cat(sprintf("Done (Conv: %s, Hessian PD: %s, MaxGrad: %.2e, Time: %.1fm)\n",
+  cat(sprintf("Done (Conv: %s, Hessian PD: %s, MaxGrad: %.2e, Time: %.2fm)\n",
               sim_convergence[s], sim_hess_pd[s], sim_max_grad[s], elapsed))
 }
 
