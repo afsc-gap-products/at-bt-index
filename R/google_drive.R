@@ -28,3 +28,22 @@ walk(results_files, ~ drive_upload(
   path = drive_folder,
   overwrite = TRUE # replace existing files?
 ))
+
+# Download a directory from google drive --------------------------------------
+# List items in drive folder
+contents <- drive_ls(drive_get(as_id("1vUfBMqi2rUqqbQzSxddgDMln1NYiR8qk")))
+
+# Set local destination folder
+local_dir <- here("Results", "Results 8-13-26")
+if (!dir.exists(local_dir)) dir.create(local_dir)
+
+# Download files
+walk2(
+  contents$id,
+  contents$name,
+  ~ drive_download(
+    file = as_id(.x),
+    path = file.path(local_dir, .y),
+    overwrite = TRUE  # replace existing files?
+  )
+)
