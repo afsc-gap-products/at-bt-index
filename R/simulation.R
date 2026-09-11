@@ -26,7 +26,7 @@ true_yhat       <- rep$yhat
 true_p          <- plogis(true_fixed_pars["invf_p"]) + 1
 true_phi        <- exp(true_fixed_pars["ln_phi"])
 
-N_SIMS <- 5  # number of simulations
+N_SIMS <- 50  # number of simulations
 set.seed(12345)  # Reproducibility seed for simulation suite
 
 # Read in original observations from data
@@ -88,6 +88,13 @@ colnames(estimates_matrix) <- param_names
 
 se_matrix <- matrix(NA, nrow = N_SIMS, ncol = length(true_fixed_pars))
 colnames(se_matrix) <- param_names
+
+# Storage for reported indices per simulation
+Ptrawl_mat <- matrix(NA, nrow = N_SIMS, ncol = max(t_i))
+Paccoustic_mat <- matrix(NA, nrow = N_SIMS, ncol = max(t_i))
+Btrawl_mat <- matrix(NA, nrow = N_SIMS, ncol = max(t_i))
+Baccoustic_mat <- matrix(NA, nrow = N_SIMS, ncol = max(t_i))
+Btotal_mat <- matrix(NA, nrow = N_SIMS, ncol = max(t_i))
 
 # Set up model ----------------------------------------------------------------
 jnll_spde <- function(parlist, what = "jnll") {
@@ -227,95 +234,128 @@ build_obj <- function() {
   )
 }
 
-# Simulation loop -------------------------------------------------------------
+# Simulation runner function -------------------------------------------------
 start_total_time <- Sys.time()
 
-for (s in seq_len(N_SIMS)) {
-  cat(sprintf("[%s] Simulation Run %d / %d ... ", format(Sys.time(), "%H:%M:%S"), s, N_SIMS))
-  
-  # Safe loop variable initialization
-  sim_obj <- sim_opt <- sim_hess <- sim_sdrep <- NULL
-  grad_val <- NA
-  
-  # Simulate dataset from Tweedie process
-  b_i <<- tweedie::rtweedie(
-    n     = length(true_yhat),
-    mu    = true_yhat,
-    phi   = true_phi,
-    power = true_p
-  )
-  
-  # Build AD function with simulated observations
-  sim_obj <- tryCatch({ build_obj() }, error = function(e) NULL)
-  
-  if (is.null(sim_obj)) {
-    cat("FAILED (Object creation error)\n")
-    sim_convergence[s] <- FALSE
-    next
+run_sim <- function(s, seed = NULL) {
+  diag <- list(Run = s, Seed = if (is.null(seed)) sample.int(10000, 1) else seed)
+  set.seed(diag$Seed)
+
+  # simulate (local)
+  b_i_sim <- tweedie::rtweedie(n = length(true_yhat), mu = true_yhat, phi = true_phi, power = true_p)
+
+  # stash original and assign simulated to global for AD function
+  orig_bi_exists <- exists("b_i", envir = .GlobalEnv)
+  orig_b_i <- if (orig_bi_exists) get("b_i", envir = .GlobalEnv) else NULL
+  assign("b_i", b_i_sim, envir = .GlobalEnv)
+
+  diag$Convergence <- FALSE
+  diag$Hessian_PD <- FALSE
+  diag$MaxGrad <- NA
+  diag$Time_min <- NA
+  diag$Error <- NA
+  result <- list()
+
+  # Build AD object
+  sim_obj <- tryCatch({ build_obj() }, error = function(e) e)
+  if (inherits(sim_obj, "error") || is.null(sim_obj)) {
+    diag$Error <- paste0("MakeADFun error: ", conditionMessage(sim_obj))
+    saveRDS(list(error = diag$Error, seed = diag$Seed), file = here(results_dir, paste0("sim_build_error_run_", s, ".rds")))
+    if (orig_bi_exists) assign("b_i", orig_b_i, envir = .GlobalEnv) else rm("b_i", envir = .GlobalEnv)
+    return(list(diagnostics = diag, result = NULL))
   }
-  
-  # Optimize model with crash protection
+
+  # Optimize
   start_sim <- Sys.time()
-  sim_opt <- tryCatch({
-    nlminb(
-      sim_obj$par,
-      sim_obj$fn,
-      sim_obj$gr,
-      control = list(iter.max = 1e4, eval.max = 1e4)
-    )
-  }, error = function(e) NULL)
-  
-  elapsed <- as.numeric(difftime(Sys.time(), start_sim, units = "mins"))
-  sim_times[s] <- elapsed
-  
-  if (is.null(sim_opt)) {
-    cat("FAILED (Optimization crash)\n")
-    sim_convergence[s] <- FALSE
-    next
+  sim_opt <- tryCatch({ nlminb(sim_obj$par, sim_obj$fn, sim_obj$gr, control = list(iter.max = 1e4, eval.max = 1e4)) }, error = function(e) e)
+  diag$Time_min <- as.numeric(difftime(Sys.time(), start_sim, units = "mins"))
+
+  if (inherits(sim_opt, "error") || is.null(sim_opt)) {
+    diag$Error <- paste0("Optimization error: ", conditionMessage(sim_opt))
+    saveRDS(list(error = diag$Error, seed = diag$Seed), file = here(results_dir, paste0("sim_opt_error_run_", s, ".rds")))
+    if (orig_bi_exists) assign("b_i", orig_b_i, envir = .GlobalEnv) else rm("b_i", envir = .GlobalEnv)
+    return(list(diagnostics = diag, result = NULL))
   }
-  
-  sim_convergence[s] <- (sim_opt$convergence == 0)
-  
-  # FIX: Correctly store the gradient value
-  grad_val <- tryCatch({ max(abs(sim_obj$gr(sim_opt$par))) }, error = function(e) NA)
-  sim_max_grad[s] <- grad_val
-  
-  # Evaluate Hessian & standard errors
-  if (sim_convergence[s] && !is.na(grad_val)) {
-    sim_hess <- tryCatch({
-      optimHess(sim_opt$par, sim_obj$fn, sim_obj$gr)
-    }, error = function(e) NULL)
-    
-    # Check that Hessian exists AND contains finite numeric values
-    if (!is.null(sim_hess) && !any(!is.finite(sim_hess))) {
-      eigen_vals <- tryCatch({ eigen(sim_hess)$values }, error = function(e) NULL)
-      
-      if (!is.null(eigen_vals) && all(eigen_vals > 0)) {
-        sim_hess_pd[s] <- TRUE
-        estimates_matrix[s, ] <- sim_opt$par
-        
-        sim_sdrep <- tryCatch({
-          sdreport(sim_obj, par.fixed = sim_opt$par, hessian.fixed = sim_hess, 
-                   bias.correct = FALSE, getReportCovariance = FALSE)
-        }, error = function(e) NULL)
-        
-        if (!is.null(sim_sdrep)) {
-          se_matrix[s, ] <- summary(sim_sdrep, "fixed")[, "Std. Error"]
-        }
-      } else {
-        sim_hess_pd[s] <- FALSE
+
+  diag$Convergence <- (sim_opt$convergence == 0)
+  diag$MaxGrad <- tryCatch({ max(abs(sim_obj$gr(sim_opt$par))) }, error = function(e) NA)
+
+  # Hessian and SE
+  sim_hess <- tryCatch({ optimHess(sim_opt$par, sim_obj$fn, sim_obj$gr) }, error = function(e) e)
+  if (!inherits(sim_hess, "error") && !is.null(sim_hess) && all(is.finite(sim_hess))) {
+    eig <- tryCatch({ eigen(sim_hess)$values }, error = function(e) NULL)
+    if (!is.null(eig) && all(eig > 0)) {
+      diag$Hessian_PD <- TRUE
+      diag$Estimates <- sim_opt$par
+      sim_sdrep <- tryCatch({ sdreport(sim_obj, par.fixed = sim_opt$par, hessian.fixed = sim_hess, bias.correct = FALSE, getReportCovariance = FALSE) }, error = function(e) e)
+      if (!inherits(sim_sdrep, "error") && !is.null(sim_sdrep)) {
+        diag$SE <- tryCatch({ summary(sim_sdrep, "fixed")[, "Std. Error"] }, error = function(e) NULL)
       }
-    } else {
-      sim_hess_pd[s] <- FALSE
     }
   }
-  
-  # Clean up memory safely after each simulation
+
+  # Extract reports before cleaning
+  rep_try <- tryCatch({ sim_obj$report() }, error = function(e) NULL)
+  if (!is.null(rep_try)) {
+    if (!is.null(rep_try$Ptrawl_t)) result$Ptrawl_t <- rep_try$Ptrawl_t
+    if (!is.null(rep_try$Paccoustic_t)) result$Paccoustic_t <- rep_try$Paccoustic_t
+    if (!is.null(rep_try$Btrawl_t)) result$Btrawl_t <- rep_try$Btrawl_t
+    if (!is.null(rep_try$Baccoustic_t)) result$Baccoustic_t <- rep_try$Baccoustic_t
+    if (!is.null(rep_try$Btotal_t)) result$Btotal_t <- rep_try$Btotal_t
+  }
+
+  # Save diagnostics + report for failed runs
+  if (!diag$Convergence || !diag$Hessian_PD) {
+    saveRDS(list(diagnostics = diag, report = rep_try, seed = diag$Seed), file = here(results_dir, paste0("sim_failed_run_", s, ".rds")))
+  }
+
+  # Clean up and restore
   rm(list = intersect(c("sim_obj", "sim_opt", "sim_hess", "sim_sdrep"), ls()))
   gc(verbose = FALSE)
-  
-  cat(sprintf("Done (Conv: %s, Hessian PD: %s, MaxGrad: %.2e, Time: %.2fm)\n",
-              sim_convergence[s], sim_hess_pd[s], sim_max_grad[s], elapsed))
+  if (orig_bi_exists) assign("b_i", orig_b_i, envir = .GlobalEnv) else rm("b_i", envir = .GlobalEnv)
+
+  return(list(diagnostics = diag, result = result))
+}
+
+# Run simulations sequentially and collect results
+run_table <- vector("list", N_SIMS)
+for (s in seq_len(N_SIMS)) {
+  cat(sprintf("[%s] Simulation Run %d / %d ... ", format(Sys.time(), "%H:%M:%S"), s, N_SIMS))
+  res <- run_sim(s)
+  run_table[[s]] <- res$diagnostics
+  sim_convergence[s] <- as.logical(res$diagnostics$Convergence)
+  sim_hess_pd[s] <- as.logical(res$diagnostics$Hessian_PD)
+  sim_max_grad[s] <- as.numeric(res$diagnostics$MaxGrad)
+  sim_times[s] <- as.numeric(res$diagnostics$Time_min)
+
+  if (!is.null(res$result) && length(res$result) > 0) {
+    if (!is.null(res$result$Ptrawl_t)) Ptrawl_mat[s, seq_len(length(res$result$Ptrawl_t))] <- res$result$Ptrawl_t
+    if (!is.null(res$result$Paccoustic_t)) Paccoustic_mat[s, seq_len(length(res$result$Paccoustic_t))] <- res$result$Paccoustic_t
+    if (!is.null(res$result$Btrawl_t)) Btrawl_mat[s, seq_len(length(res$result$Btrawl_t))] <- res$result$Btrawl_t
+    if (!is.null(res$result$Baccoustic_t)) Baccoustic_mat[s, seq_len(length(res$result$Baccoustic_t))] <- res$result$Baccoustic_t
+    if (!is.null(res$result$Btotal_t)) Btotal_mat[s, seq_len(length(res$result$Btotal_t))] <- res$result$Btotal_t
+  }
+
+  cat(sprintf("Done (Seed: %d, Conv: %s, HessPD: %s, MaxGrad: %s, Time: %.2fm)\n",
+              res$diagnostics$Seed, res$diagnostics$Convergence, res$diagnostics$Hessian_PD,
+              format(res$diagnostics$MaxGrad, digits = 3), res$diagnostics$Time_min))
+}
+
+# After runs: write run diagnostics table to CSV
+run_df <- do.call(rbind, lapply(run_table, function(x) as.data.frame(lapply(x, function(v) if(length(v)==1) v else I(list(v))), stringsAsFactors = FALSE)))
+write.csv(run_df, here(results_dir, "simulation_run_diagnostics.csv"), row.names = FALSE)
+
+# Save per-simulation indices to CSV
+yrs <- year_set
+if (exists("Ptrawl_mat")) {
+  colnames(Ptrawl_mat) <- yrs
+  Ptrawl_df <- data.frame(Run = seq_len(N_SIMS), Ptrawl_mat)
+  write.csv(Ptrawl_df, here(results_dir, "Ptrawl_by_simulation.csv"), row.names = FALSE)
+}
+if (exists("Paccoustic_mat")) {
+  colnames(Paccoustic_mat) <- yrs
+  Paccoustic_df <- data.frame(Run = seq_len(N_SIMS), Paccoustic_mat)
+  write.csv(Paccoustic_df, here(results_dir, "Paccoustic_by_simulation.csv"), row.names = FALSE)
 }
 
 # Restore original observations to workspace
