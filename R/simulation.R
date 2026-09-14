@@ -342,7 +342,21 @@ for (s in seq_len(N_SIMS)) {
 }
 
 # After runs: write run diagnostics table to CSV
-run_df <- do.call(rbind, lapply(run_table, function(x) as.data.frame(lapply(x, function(v) if(length(v)==1) v else I(list(v))), stringsAsFactors = FALSE)))
+all_names <- unique(unlist(lapply(run_table, names)))
+run_df_list <- lapply(run_table, function(x) {
+  row <- vector("list", length(all_names))
+  names(row) <- all_names
+  for (nm in all_names) {
+    if (nm %in% names(x)) {
+      v <- x[[nm]]
+      row[[nm]] <- if (length(v) == 1) v else list(v)
+    } else {
+      row[[nm]] <- NA
+    }
+  }
+  as.data.frame(row, stringsAsFactors = FALSE)
+})
+run_df <- do.call(rbind, run_df_list)
 write.csv(run_df, here(results_dir, "simulation_run_diagnostics.csv"), row.names = FALSE)
 
 # Save per-simulation indices to CSV
