@@ -110,6 +110,7 @@ ggplot() +
     values = c("Excluded" = "grey60", "Kept" = "darkmagenta")
   ) +
   xlab("") + ylab("")
+ggsave(filename = here("output", "bt_filtering.png"), width = 7, height = 6, units = "in", dpi = 300)
 
 write.csv(ddc_filtered_out, here("data", "2025", "bt_filtered.csv"), row.names = FALSE)
 
