@@ -9,7 +9,7 @@ year <- 2025
 
 # Read in and combine ---------------------------------------------------------
 at <- read.csv(here("data", "at", "ats_16.csv"))  # made in at_processing.R
-bt <- read.csv(here("data", year, "bt_processed.csv"))  # made in bt_processing.R
+bt <- read.csv(here("data", year, "bt_filtered.csv"))  # made in bt_processing.R
 avo <- read.csv(here("data", year, "avo_binned.csv"))  # made in avo_processing.R
 
 # Reconfigure AT dataframe to match BT and AVO dataframes
@@ -27,45 +27,13 @@ bt_new <- bt %>% filter(Year >= 2007)
 
 dat_new <- rbind.data.frame(at_new, bt_new, avo)
   
-write.csv(dat_new, here("data", year, "dat_all.csv"), row.names = FALSE)
-
-# Constrain BT data to the same range as AT -----------------------------------
-# Create a concave hull polygon from AT points
-at_proj <- dat_new |> 
-  filter(Gear %in% c("AT1", "AT2", "AT3")) |> 
-  st_as_sf(coords = c("Lon", "Lat"), crs = 4326) |> 
-  st_transform(3338)
-
-bt_proj <- dat_new |> 
-  filter(Gear == "BT") |> 
-  st_as_sf(coords = c("Lon", "Lat"), crs = 4326) |>
-  st_transform(3338)
-
-# install.packages("concaveman") 
-library(concaveman)
-at_concave <- concaveman(at_proj)  
-
-# Keep only BT points within the concave hull
-bt_in_at <- bt_proj[st_within(bt_proj, at_concave, sparse = FALSE), ]
-
-# Extract coordinates for plotting
-bt_in_at_ll <- bt_in_at |> st_transform(4326)
-coords <- st_coordinates(bt_in_at_ll)
-bt_final <- bt_in_at_ll |>
-  mutate(
-    Lon = coords[, 1],
-    Lat = coords[, 2],
-    Gear = "BT",
-    Year = Year
-  ) |>
-  st_drop_geometry()
-
-dat_constrained <- rbind.data.frame(at_new, bt_final, avo)
-write.csv(dat_constrained, here("data", year, "dat_bt_constrained.csv"), row.names = FALSE)
+write.csv(dat_new, here("data", year, "dat_bt_filtered.csv"), row.names = FALSE)
 
 # Plot data for each layer and survey -----------------------------------------
-dir.create(here("output", "data_by_gear")) 
+dir.create(here("output", "data_by_gear_filtered")) 
 
+world <- rnaturalearth::ne_countries(scale = "medium", returnclass = "sf")
+sf_use_s2(FALSE)  # turn off spherical geometry
 plot_by_gear <- function(dat2, gear) {
   p <- ggplot() +
     geom_sf(data = world) +
@@ -76,7 +44,7 @@ plot_by_gear <- function(dat2, gear) {
              expand = TRUE) +  # ggplot adds a buffer
     xlab("") + ylab("") +
     facet_wrap(~ Year)
-  ggsave(p, filename = here("output", "data_by_gear", paste0("data_", gear, ".png")),
+  ggsave(p, filename = here("output", "data_by_gear_filtered", paste0("data_", gear, ".png")),
          width = 9, height = 7, units = "in", dpi = 300)
 }
 

@@ -7,6 +7,7 @@ library(here)
 library(dplyr)
 library(RODBC)
 library(ggplot2)
+library(sf)
 
 if (!requireNamespace("gapindex", quietly = TRUE)) {
   pak::pkg_install("afsc-gap-products/gapindex")
@@ -72,6 +73,45 @@ ddc_cpue_out <- ddc_cpue %>%
   mutate(Gear = "BT") 
 
 write.csv(ddc_cpue_out, file = here(wd, "bt_processed.csv"), row.names = FALSE)
+
+# Constrain to extent of the AT survey ----------------------------------------
+# Read in shapefile for AT survey
+Sys.setenv(SHAPE_RESTORE_SHX = "YES")  # create missing .shx file
+at_shp <- st_read(here("shapefiles", "EBS_bounds.shp"))
+st_crs(at_shp) <- 4326  # set CRS to WGS84
+
+# Transform dataframe to sf object
+ddc_sf <- st_as_sf(ddc_cpue_out, coords = c("Lon", "Lat"), crs = st_crs(at_shp))
+
+# Filter points to those within the AT polygon
+ddc_filtered <- st_filter(ddc_sf, at_shp) 
+
+ddc_filtered_out <- ddc_filtered %>%
+  mutate(
+    longitude = st_coordinates(.)[, 1],
+    latitude  = st_coordinates(.)[, 2]
+  ) %>%
+  st_drop_geometry() %>%
+  select(
+    Lat = latitude,
+    Lon = longitude,
+    Year = Year,
+    Abundance = Abundance,
+    Gear = Gear
+  )
+
+# Double check and save output
+ggplot() +
+  geom_sf(data = at_shp, fill = "lightblue", alpha = 0.3, color = "darkblue", linewidth = 0.5) +
+  geom_sf(data = ddc_sf, aes(color = "Excluded"), size = 1.5, alpha = 0.5) +
+  geom_sf(data = ddc_filtered, aes(color = "Kept"), size = 2, alpha = 0.8) +
+  scale_color_manual(
+    name = "",
+    values = c("Excluded" = "grey60", "Kept" = "darkmagenta")
+  ) +
+  xlab("") + ylab("")
+
+write.csv(ddc_filtered_out, here("data", "2025", "bt_filtered.csv"), row.names = FALSE)
 
 # Compare with original dataset -----------------------------------------------
 # bt_old <- read.csv(here("data", "dat_all_at.csv")) %>%
