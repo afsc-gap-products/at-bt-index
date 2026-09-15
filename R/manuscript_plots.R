@@ -22,6 +22,13 @@ sf_use_s2(FALSE)  # turn off spherical geometry
 # Select years for plotting (to keep consistent across plots)
 select_years <- c(2007, 2010, 2013, 2017, 2021, 2024)
 
+# Set where to read data from
+results_dir <- here("Results", "Results 8-13-26")
+
+# Set output directory 
+out_dir <- here("output", "figures")
+dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
+
 # Conceptual model ------------------------------------------------------------
 # Define background rectangle regions (right column shading)
 # rect_data <- data.frame(
@@ -129,7 +136,7 @@ avail <- ggplot(dat_avail) +
   xlab("") + ylab("") +
   theme_sleek()
 
-ggsave(avail, filename = here("output", "figures", "survey_availability.png"), 
+ggsave(avail, filename = here(out_dir, "survey_availability.png"), 
        width = 5.5, height = 5, units = "in", dpi = 300)
 
 # cowplot::plot_grid(model, avail, ncol = 2)
@@ -153,7 +160,7 @@ survey_locations <- ggplot(data = world) +
   facet_grid(Gear ~ Year)
 survey_locations
   
-ggsave(survey_locations, filename = here("output", "figures", "survey_locations.png"),
+ggsave(survey_locations, filename = here(out_dir, "survey_locations.png"),
        width = 9, height = 4, units = "in", dpi = 300)
 
 # Spatial density -------------------------------------------------------------
@@ -162,8 +169,7 @@ labels = c("0.5", "0.5-3", "3-16", "16") # , "AT", "BT")  # select which to read
 # Load in and plot spatial density results
 spatial_results <- function(interval) {
   den_map <- readRDS(here::here(
-    "Results", 
-    "new_avo_years", 
+    results_dir,
     paste0("Densities", "_", interval, ".rds")
   )) %>%
     mutate(year = as.integer(year))
@@ -186,7 +192,7 @@ spatial_df <- lapply(labels, function(i) {
   df_out <- spatial_results(i) 
   
   ggsave(
-    filename = here("output", "figures", paste0("density_", i, ".png")),
+    filename = here(out_dir, paste0("density_", i, ".png")),
     plot = df_out$plot,
     width = 9, height = 6, units = "in", dpi = 300
   )
@@ -219,7 +225,7 @@ ggplot(combined_df) +
   )
 
 ggsave(
-  filename = here("output", "figures", "combined_density.png"),
+  filename = here(out_dir, "combined_density.png"),
   width = 11, height = 5, units = "in", dpi = 300
 )
  
@@ -245,7 +251,7 @@ depth_prop
 
 ggsave(
   depth_prop,
-  filename = here("output", "figures", "depth_proportion.png"),
+  filename = here(out_dir, "depth_proportion.png"),
   width = 5, height = 5, units = "in", dpi = 300
 )
 
@@ -270,7 +276,7 @@ gear_prop
 
 ggsave(
   gear_prop,
-  filename = here("output", "figures", "gear_proportion.png"),
+  filename = here(out_dir, "gear_proportion.png"),
   width = 5, height = 5, units = "in", dpi = 300
 )
 
@@ -296,7 +302,7 @@ ind_depth_compare
 
 ggsave(
   ind_depth_compare,
-  filename = here("output", "figures", "index_depth_compare.png"),
+  filename = here(out_dir, "index_depth_compare.png"),
   width = 8, height = 5, units = "in", dpi = 300
 )
 
@@ -366,24 +372,24 @@ all_indices
 
 ggsave(
   all_indices,
-  filename = here("output", "figures", "all_indices.png"),
+  filename = here(out_dir, "all_indices.png"),
   width = 7, height = 7, units = "in", dpi = 300
 )
 
 # Proportion by gear type and total index value vs. real life
-cowplot::plot_grid(gear_prop, all_indices, ncol = 2, labels = c("A", "B"))
+cowplot::plot_grid(gear_prop, all_indices, ncol = 2, labels = c("A", "B"))  # WHERE IS GEAR PROP
 
 ggsave(
-  filename = here("output", "figures", "compare_models.png"),
+  filename = here(out_wd, "compare_models.png"),
   width = 11, height = 6, units = "in", dpi = 300
 )
 
 # Residuals -------------------------------------------------------------------
-residuals <- readRDS(here("Results", "Results 8-13-26", "residuals.RDS")) %>%
+residuals <- readRDS(here(results_dir, "residuals.RDS")) %>%
   filter(Year %in% select_years) %>%
   mutate(Gear = factor(Gear, levels = c("AT3", "AT2", "AT1", "AVO3", "AVO2", "BT"))) %>%
   mutate(
-    coords = st_coordinates(sf::st_cast(geometry, "POINT")),
+    coords = st_coordinates(sf::st_centroid(geometry)),
     lon = coords[, 1],
     lat = coords[, 2]
   ) %>%
@@ -401,7 +407,7 @@ residuals <- readRDS(here("Results", "Results 8-13-26", "residuals.RDS")) %>%
 #     axis.title = element_blank(),
 #     axis.text = element_blank(),
 #     axis.ticks = element_blank()
-  ) 
+#   ) 
 ggplot(residuals) +
   geom_point(data = residuals %>% filter(Year %in% select_years), 
             aes(x = lon, y = lat, color = Residual), size = 0.4) +
@@ -415,7 +421,7 @@ ggplot(residuals) +
   ) 
 
 ggsave(
-  filename = here("output", "figures", "residuals.png"),
+  filename = here(out_dir, "residuals.png"),
   width = 8, 
   height = 6, 
   units = "in", 
