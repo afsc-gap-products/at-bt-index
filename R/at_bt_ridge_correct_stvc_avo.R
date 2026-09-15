@@ -47,6 +47,8 @@ if (!dir.exists(results_dir)) {
 # Read in data and set up model inputs ----------------------------------------
 year <- 2025  # static for now (but set up for updating annually)
 dat <- read.csv(here("data", year, "dat_all.csv")) 
+#dat <- read.csv(here("data", year, "dat_bt_constrained.csv")) 
+
 
 # # Thin AVO3 samples
 # which_AVO3 <- which(dat$Gear == "AVO3")
@@ -114,7 +116,8 @@ parlist <- list(
   ln_sd = log(0.1),
   ln_tau_xi = log(1),
   ln_kappa_xi = log(1),  
-  invf_rho_xi = 1       
+  invf_rho_xi = 1,
+  ln_sigma_gamma = log(0.2)
 )
 
 # Model construction ----------------------------------------------------------
@@ -126,7 +129,7 @@ jnll_spde <- function(parlist, what = "jnll") {
   p <- plogis(invf_p) + 1 # tweedie power param
   Q_omega <- (exp(4 * ln_kappa) * M0 + 2 * exp(2 * ln_kappa) * M1 + M2) * exp(2 * ln_tau_omega)
   Q_epsilon <- (exp(4 * ln_kappa) * M0 + 2 * exp(2 * ln_kappa) * M1 + M2) * exp(2 * ln_tau_epsilon)
-  Q_xi <- (exp(4 * ln_kappa_xi) * M0 + 2 * exp(2 * ln_kappa_xi) * M1 + M2) * exp(2 * ln_kappa_xi)
+  Q_xi <- (exp(4 * ln_kappa_xi) * M0 + 2 * exp(2 * ln_kappa_xi) * M1 + M2) * exp(2 * ln_tau_xi)
   rho <- invf_rho # plogis(), controls how strongly spatiotemporal anomalies are linked from year to year
   rho_xi <- invf_rho_xi
   sd <- exp(ln_sd)
@@ -134,7 +137,7 @@ jnll_spde <- function(parlist, what = "jnll") {
   
   # Likelihood terms
   # For the following lines: 1 = <0.5m, 2 = 0.5-3m, 3 = 3-16m, 4 = >16m
-  nll_prior = nll_beta = nll_data = nll_epsilon = nll_omega = nll_xi = 0
+  nll_prior = nll_beta = nll_data = nll_epsilon = nll_omega = nll_xi = nll_gamma = 0
   for(i in seq_along(b_i)) {
     # BT covers all intervals from <0.5 to the effective fishing height (16m)
     # yhat is expected density
@@ -186,6 +189,21 @@ jnll_spde <- function(parlist, what = "jnll") {
       }
     }}
   
+  for(c_index in 1:2) { # Layers 3 & 4
+    
+    # 1. Year 1 initial prior (anchors Year 1 near 0)
+    nll_gamma <- nll_gamma - dnorm(gamma_bs[c_index, 1], mean = 0, sd = 1, log = TRUE)
+    
+    # 2. Years 2+ random walk transition
+    for(t_index in 2:max(t_i)) {
+      nll_gamma <- nll_gamma - dnorm(
+        x    = gamma_bs[c_index, t_index],
+        mean = gamma_bs[c_index, t_index - 1],
+        sd   = exp(ln_sigma_gamma),
+        log  = TRUE
+      )
+    }
+  }
   
   for(t_index in 1:max(t_i)) {
     for(c_index in 1:2) { # Only evaluate for midwater layers (Layer 3 & 4)
@@ -196,7 +214,6 @@ jnll_spde <- function(parlist, what = "jnll") {
                                  log = TRUE)
       } else {
         # Years 2+: AR(1) temporal transition over years
-        expected_xi <- 
         nll_xi <- nll_xi - dgmrf(xi_bs[, c_index, t_index], 
                                  mu = rho_xi * xi_bs[, c_index, t_index - 1], 
                                  Q = Q_xi, 
@@ -228,13 +245,14 @@ jnll_spde <- function(parlist, what = "jnll") {
     }}
   
   nll_prior <- -1 * dnorm(ln_q, mean = 0, sd = 0.15, log = TRUE)
-  if(what == "jnll") out <- nll_data + nll_epsilon + nll_beta + nll_omega + nll_prior + nll_xi
+  if(what == "jnll") out <- nll_data + nll_epsilon + nll_beta + nll_omega + nll_prior + nll_xi + nll_gamma
   if(what == "diag") {
     out <- list(nll_data = nll_data,
                 nll_epsilon = nll_epsilon,
                 nll_beta = nll_beta,
                 nll_omega = nll_omega,
                 nll_prior = nll_prior,
+                nll_gamma = nll_gamma,
                 nll_xi = nll_xi)
   }
   
@@ -337,8 +355,18 @@ opt <- nlminb(obj$par,
               obj$gr, 
               control = list(iter.max = 1e4, eval.max = 1e4, trace = 1))
 
+cat("\nOptimizer Convergence Code:", opt$convergence, "\n")
+cat("Message:", opt$message, "\n")
+final_max_gr <- max(abs(obj$gr(opt$par)))
+cat("Final Max Absolute Gradient:", round(final_max_gr, 6), "\n")
+
+
 parlist <- obj$env$parList()  # parameter estimates
 Hess <- optimHess(opt$par, obj$fn, obj$gr)
+
+# Check if Hessian is positive-definite
+is_pd <- all(eigen(Hess)$values > 0)
+cat("Is Hessian positive definite?", is_pd, "\n")
 
 # Get epsilon estimator (bias correction)
 biascor <- sdreport(obj, 
@@ -644,3 +672,200 @@ avail_both
 
 ggsave(avail_both, filename = here(results_dir, "avail_both.png"),
        width = 150, height = 150, units = "mm", dpi = 300)
+
+
+
+
+
+# ==============================================================================
+# Plot Xi_bs
+# ==============================================================================
+
+xi_gct <- rep$xi_gct[, 1:2, , drop = FALSE]  # Dimensions: [n_grid_cells, 2_layers, n_years]
+
+# Convert extrap matrix to data frame and sf spatial object
+extrap_df <- as.data.frame(extrap)
+extrap_sf <- st_as_sf(extrap_df, coords = c("Lon", "Lat"), crs = 4326)
+# Extract BT station locations from input dat
+dat_bt    <- dat %>% filter(Gear == "BT")
+dat_bt_sf <- st_as_sf(dat_bt, coords = c("Lon", "Lat"), crs = 4326)
+
+bt_boundary <- dat_bt_sf %>%
+  st_buffer(dist = 0.35) %>%  # ~20 nmi radius around each station
+  st_union()
+
+# Identify grid cells in extrap that fall within the refined BT footprint
+in_bt_domain <- st_intersects(extrap_sf, bt_boundary, sparse = FALSE)[, 1]
+
+# Crop both the extrapolation grid and xi_gct spatial array
+extrapolation_grid <- extrap_df[in_bt_domain, ]
+xi_gct_bt            <- xi_gct[in_bt_domain, , , drop = FALSE]
+
+cat("Original Grid Cells:", nrow(extrap_df), "\n")
+cat("Refined Footprint Grid Cells:", nrow(extrapolation_grid), "\n")
+
+
+
+# Full sequence of model years corresponding to the 3rd array dimension of xi_gct
+full_years <- min(dat$Year):max(dat$Year)
+
+# Dynamically extract unique years where AVO sampling actually occurred
+avo_years <- sort(unique(dat$Year[grepl("AVO", dat$Gear)]))
+
+n_years_avo  <- length(avo_years)
+
+# Compute optimal grid layout for years (e.g., 9 years -> 3x3; 12 years -> 4x3)
+n_cols_years <- ceiling(sqrt(n_years_avo))
+n_rows_years <- ceiling(n_years_avo / n_cols_years)
+
+# Total faceting columns = n_cols_years * 2 (since each year has 2 depth layers side-by-side)
+total_facet_cols <- n_cols_years * 2
+
+cat("AVO Years Count:", n_years_avo, "\n")
+cat("Grid Layout:", n_rows_years, "year-rows x", n_cols_years, "year-columns\n")
+
+# Get array dimensions
+n_grid   <- dim(xi_gct_bt)[1]
+n_layers <- 2  # Exactly 2 AVO layers: Layer 3 & Layer 4
+n_years  <- dim(xi_gct_bt)[3]
+
+# Set layer labels and year vector (update starting year to match your dataset)
+layer_names <- c("Layer 3 (3–16m)", "Layer 4 (>16m)")
+years_vec <- sort(unique(dat$Year))
+
+# Assumes 'extrapolation_grid' contains Lon and Lat for each grid cell
+plot_list <- list()
+
+for (t in 1:n_years) {
+  for (c in 1:n_layers) {
+    plot_list[[length(plot_list) + 1]] <- data.frame(
+      Lon   = extrapolation_grid$Lon,
+      Lat   = extrapolation_grid$Lat,
+      xi    = xi_gct_bt[, c, t],
+      Layer = layer_names[c],
+      Year  = full_years[t]
+    )
+  }
+}
+
+plot_df <- bind_rows(plot_list)
+plot_df_avo <- plot_df %>% filter(Year %in% avo_years)
+
+
+plot_single_layer_grid <- function(target_layer_name, df = plot_df_avo) {
+  df_layer <- df %>% filter(Layer == target_layer_name)
+  
+  p <- ggplot(df_layer, aes(x = Lon, y = Lat, fill = xi)) +
+    geom_tile(width = 0.35, height = 0.25) +
+    scale_fill_gradient2(
+      low      = "#2b83ba", # Blue  = Negative anomaly (<= -2)
+      mid      = "#f7f7f7", # White = Baseline conversion rate (0)
+      high     = "#d7191c", # Red   = Positive anomaly (>= +2)
+      midpoint = 0,
+      limits   = c(-2, 2),       # Sets fixed color bounds [-2, +2]
+      oob      = scales::squish, # Squashes values < -2 or > 2 to min/max colors
+      name     = expression(xi[gct] ~ " Anomaly")
+    ) +
+    facet_wrap(~ Year, ncol = n_cols_years) +
+    coord_quickmap() +
+    theme_bw(base_size = 11) +
+    theme(
+      panel.grid       = element_blank(),
+      strip.background = element_rect(fill = "grey92", color = NA),
+      strip.text       = element_text(face = "bold", size = 11),
+      axis.text.x      = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 8),
+      axis.text.y      = element_text(size = 8),
+      legend.position  = "bottom",
+      plot.title       = element_text(face = "bold", size = 14),
+      plot.subtitle    = element_text(size = 11)
+    ) +
+    labs(
+      title    = paste0("STVC Anomaly Fields (", target_layer_name, ")"),
+      subtitle = expression("AVO backscatter-to-biomass conversion anomalies (" * xi[gct] * ") across survey years"),
+      x        = "Longitude",
+      y        = "Latitude"
+    )
+  
+  return(p)
+}
+
+
+calc_width  <- n_cols_years * 3.5
+calc_height <- n_rows_years * 3.2
+
+# --- Plot 1: Layer 3 (3–16m) ---
+p_layer3 <- plot_single_layer_grid("Layer 3 (3–16m)")
+print(p_layer3)
+ggsave("EBS_STVC_xi_gct_Layer3_AVO.png", p_layer3, width = calc_width, height = calc_height, dpi = 300)
+
+# --- Plot 2: Layer 4 (>16m) ---
+p_layer4 <- plot_single_layer_grid("Layer 4 (>16m)")
+print(p_layer4)
+ggsave("EBS_STVC_xi_gct_Layer4_AVO.png", p_layer4, width = calc_width, height = calc_height, dpi = 300)
+
+
+# ==============================================================================
+# Plot BT density inputs
+# ==============================================================================
+
+# Filter dat for bottom trawl rows
+dat_bt <- dat %>% filter(Gear == "BT")
+
+# Dynamically identify the CPUE / Abundance column name in dat
+cpue_col <- if ("Abundance" %in% names(dat_bt)) {
+  "Abundance"
+} else if ("b_i" %in% names(dat_bt)) {
+  "b_i"
+} else {
+  "CPUE"
+}
+
+# Apply log1p transformation for better visual contrast across catch magnitudes
+dat_bt <- dat_bt %>%
+  mutate(log_cpue = log1p(.data[[cpue_col]]))
+
+# Extract unique BT survey years and calculate 2D grid dimensions
+bt_years    <- sort(unique(dat_bt$Year))
+n_years_bt  <- length(bt_years)
+
+n_cols_years <- ceiling(sqrt(n_years_bt))
+n_rows_years <- ceiling(n_years_bt / n_cols_years)
+
+cat("BT Survey Years Count:", n_years_bt, "\n")
+cat("Grid Layout:", n_rows_years, "rows x", n_cols_years, "columns\n")
+
+
+p_bt_grid <- ggplot(dat_bt, aes(x = Lon, y = Lat)) +
+  # Haul location points colored by log catch density
+  geom_point(aes(color = log_cpue), size = 1.3, alpha = 0.9) +
+  scale_color_viridis_c(
+    option = "viridis",
+    name   = expression(log("CPUE" + 1))
+  ) +
+  # Wrap into a balanced 2D matrix of years
+  facet_wrap(~ Year, ncol = n_cols_years) +
+  coord_quickmap() +
+  theme_bw(base_size = 11) +
+  theme(
+    panel.grid       = element_blank(),
+    strip.background = element_rect(fill = "grey92", color = NA),
+    strip.text       = element_text(face = "bold", size = 10),
+    axis.text.x      = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 7),
+    axis.text.y      = element_text(size = 7),
+    legend.position  = "bottom",
+    plot.title       = element_text(face = "bold", size = 14),
+    plot.subtitle    = element_text(size = 11)
+  ) +
+  labs(
+    title    = "Bottom Trawl (BT) Survey Input CPUE",
+    subtitle = "Observed pollock catch per unit effort across Eastern Bering Sea shelf survey years",
+    x        = "Longitude",
+    y        = "Latitude"
+  )
+
+print(p_bt_grid)
+
+calc_width  <- n_cols_years * 3.5
+calc_height <- n_rows_years * 3.2
+
+ggsave("EBS_BT_input_data_grid.png", p_bt_grid, width = calc_width, height = calc_height, dpi = 300)
