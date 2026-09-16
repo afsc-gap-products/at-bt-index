@@ -230,7 +230,6 @@ ggsave(
 )
  
 # Comparison plots of the model with and without AVO --------------------------
-
 # Proportion available by depth
 depth_prop <- bind_rows(
   bind_cols(
@@ -305,7 +304,6 @@ ggsave(
   filename = here(out_dir, "index_depth_compare.png"),
   width = 8, height = 5, units = "in", dpi = 300
 )
-
 
 # Total biomass by survey (compared to assessment index) ----------------------
 index_gear <- bind_rows(
@@ -387,38 +385,23 @@ ggsave(
 # Residuals -------------------------------------------------------------------
 residuals <- readRDS(here(results_dir, "residuals.RDS")) %>%
   filter(Year %in% select_years) %>%
-  mutate(Gear = factor(Gear, levels = c("AT3", "AT2", "AT1", "AVO3", "AVO2", "BT"))) %>%
-  mutate(
-    coords = st_coordinates(sf::st_centroid(geometry)),
-    lon = coords[, 1],
-    lat = coords[, 2]
-  ) %>%
-  select(-coords)
+  mutate(Gear = factor(Gear, levels = c("AT3", "AT2", "AT1", "AVO3", "AVO2", "BT"))) 
 
-# ggplot(residuals) +
-#   geom_sf(aes(fill = Residual, color = Residual)) +
-#   scale_fill_viridis(limits = c(0, 1)) + 
-#   scale_color_viridis(limits = c(0, 1)) +
-#   facet_grid(Gear ~ Year) +
-#   labs(
-#     fill = "DHARMa Residual", 
-#     color = "DHARMa Residual") +
-#   theme(
-#     axis.title = element_blank(),
-#     axis.text = element_blank(),
-#     axis.ticks = element_blank()
-#   ) 
 ggplot(residuals) +
-  geom_point(data = residuals %>% filter(Year %in% select_years), 
-            aes(x = lon, y = lat, color = Residual), size = 0.4) +
-  scale_color_viridis(limits = c(0, 1)) +
-  facet_grid(Gear ~ Year) +
-  labs(color = "Residual") +
+  geom_sf(aes(fill = Residual, color = Residual)) +
+  scale_color_distiller(palette = "PuOr") +
+  scale_fill_distiller(palette = "PuOr") +
+  facet_wrap(~Year) +
+  labs(
+    fill = "Residual", 
+    color = "Residual"
+  ) +
   theme(
     axis.title = element_blank(),
     axis.text = element_blank(),
     axis.ticks = element_blank()
-  ) 
+  ) +
+  facet_grid(Gear ~ Year)
 
 ggsave(
   filename = here(out_dir, "residuals.png"),

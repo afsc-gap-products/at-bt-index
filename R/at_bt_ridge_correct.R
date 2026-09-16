@@ -368,8 +368,8 @@ residuals_df <- data.frame(
   Lat = dat$Lat,
   Year = dat$Year,
   Gear = dat$Gear,
-  Residual = residuals(simulated_residuals)
-)
+  Residual = residuals(simulated_residuals, quantileFunction = qnorm)
+) 
 
 # Convert residuals to sf points
 residuals_sf <- st_as_sf(residuals_df, coords = c("Lon", "Lat"), crs = 4326)
@@ -400,12 +400,12 @@ gears <- unique(plotgrid_residuals$Gear)
 for(i in 1:length(gears)) {
   ggplot(plotgrid_residuals %>% filter(Gear == gears[i])) +
     geom_sf(aes(fill = Residual, color = Residual)) +
-    scale_fill_viridis(limits = c(0, 1)) + 
-    scale_color_viridis(limits = c(0, 1)) +
+    scale_color_distiller(palette = "PuOr") +
+    scale_fill_distiller(palette = "PuOr") +
     facet_wrap(~Year) +
     labs(
-      fill = "DHARMa Residual", 
-      color = "DHARMa Residual", 
+      fill = "Residual", 
+      color = "Residual", 
       title = gears[i]
     ) +
     theme(
