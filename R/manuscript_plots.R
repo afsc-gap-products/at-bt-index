@@ -135,6 +135,7 @@ avail <- ggplot(dat_avail) +
   theme(legend.position = "none") +
   xlab("") + ylab("") +
   theme_sleek()
+avail
 
 ggsave(avail, filename = here(out_dir, "survey_availability.png"), 
        width = 5.5, height = 5, units = "in", dpi = 300)
@@ -295,7 +296,7 @@ ind_depth_compare <- bind_rows(
   geom_ribbon(aes(x = Year, ymin = (Estimate - 2 * SD), ymax = (Estimate + 2 * SD), fill = Model), alpha = 0.4) +
   scale_fill_viridis(na.value = NA, option = "inferno", discrete = TRUE, begin = 0.2, end = 0.7) +
   scale_color_viridis(na.value = NA, option = "inferno", discrete = TRUE, begin = 0.2, end = 0.7) +
-  ylab("Abundance (Mt)") + xlab("") +
+  ylab("Biomass (Mt)") + xlab("") +
   facet_wrap(~ Height)
 ind_depth_compare
 
@@ -363,7 +364,7 @@ all_indices <- bind_rows(index_gear, bt_index, at_index) %>%
     # geom_errorbar(aes(x = Year, y = Estimate, ymin = lwr, ymax = upr, color = Model), width = 0.2) +
     geom_pointrange(aes(x = Year, y = Estimate, ymin = lwr, ymax = upr, color = Model), position = position_dodge(width = 0.4)) +
     scale_color_viridis(na.value = NA, option = "inferno", discrete = TRUE, begin = 0.2, end = 0.7) +
-    ylab("Abundance (Mt)") + xlab("") +
+    ylab("Biomass (Mt)") + xlab("") +
     coord_cartesian(ylim = c(0, NA)) +
     facet_wrap(~ Gear, ncol = 1)
 all_indices
