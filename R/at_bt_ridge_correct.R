@@ -113,6 +113,7 @@ jnll_spde <- function(parlist, what = "jnll") {
   # For the following lines: 1 = <0.5m, 2 = 0.5-3m, 3 = 3-16m, 4 = >16m
   nll_prior = nll_beta = nll_data = nll_epsilon = nll_omega = nll_xi = 0
   yhat <- numeric(length(b_i))  # <--- Initialize vector here
+
   for(i in seq_along(b_i)) {
     # BT covers all intervals from <0.5 to the effective fishing height (16m)
     # yhat is expected density
