@@ -19,7 +19,7 @@
 install <- "full"
 source("R/requirements.R")
 
-results_dir <- here("Results", "Results 8-13-26")
+results_dir <- here("Results", "Correlations")
 dir.create(results_dir, showWarnings = FALSE, recursive = TRUE)
 
 # Read in data and set up model inputs ----------------------------------------
@@ -74,15 +74,23 @@ M0 <- spde$c0  # mass matrix
 M1 <- spde$g1  # gradient matrix (first derivative)
 M2 <- spde$g2  # stiffness matrix (second derivative / Laplacian)
 
+# Initial lower-triangular values for 4x4 matrix
+L_init <- c(
+  1,             # L[1,1]
+  0, 1,          # L[2,1], L[2,2]
+  0, 0, 1,       # L[3,1], L[3,2], L[3,3]
+  0, 0, 0, 1     # L[4,1], L[4,2], L[4,3], L[4,4]
+)
+
 parlist <- list(
   mu_c = rep(0, 4),
   beta_ct = array(0, dim = c(4, max(t_i))),
-  epsilon_sct = array(0, dim = c(mesh$n, 4, max(t_i))),
-  omega_sc = array(0, dim = c(mesh$n, 4)),
+  epsilon_sct_raw = array(0, dim = c(mesh$n, 4, max(t_i))), # Latent factors
+  omega_sc_raw = array(0, dim = c(mesh$n, 4)),  # Latent factors
+  L_omega_vec = L_init,  # Factor loadings for omega
+  L_epsilon_vec = L_init,  # Factor loadings for epsilon
   log_catchability = c(0),  # Q = E( backscatter / biomass )
   ln_kappa = log(1),
-  ln_tau_omega = log(1),
-  ln_tau_epsilon = log(1),
   ln_q = log(1),
   ln_phi = log(1),
   invf_p = 0,
@@ -97,23 +105,51 @@ jnll_spde <- function(parlist, what = "jnll") {
   getAll(parlist)
   phi <- exp(ln_phi)
   p <- plogis(invf_p) + 1
-  Q_omega <- (exp(4 * ln_kappa) * M0 + 2 * exp(2 * ln_kappa) * M1 + M2) * exp(2 * ln_tau_omega)
-  Q_epsilon <- (exp(4 * ln_kappa) * M0 + 2 * exp(2 * ln_kappa) * M1 + M2) * exp(2 * ln_tau_epsilon)
   rho <- invf_rho # plogis()
   sd <- exp(ln_sd)
+
+  # Unscaled Matérn precision matrix (variance absorbed into L)
+  Q_spatial <- (exp(4 * ln_kappa) * M0 + 2 * exp(2 * ln_kappa) * M1 + M2)
+
+# Reconstruct 4x4 Lower-Triangular Loading Matrices
+  L_omega <- matrix(0, 4, 4)
+  L_omega[lower.tri(L_omega, diag = TRUE)] <- L_omega_vec
+  
+  L_epsilon <- matrix(0, 4, 4)
+  L_epsilon[lower.tri(L_epsilon, diag = TRUE)] <- L_epsilon_vec
+  
+  # Calculate Covariance & Correlation Matrices across depth layers
+  Cov_omega <- L_omega %*% t(L_omega)
+  sd_omega <- sqrt(diag(Cov_omega))
+  Cor_omega <- Cov_omega / (sd_omega %*% t(sd_omega))
+  
+  Cov_epsilon <- L_epsilon %*% t(L_epsilon)
+  sd_epsilon <- sqrt(diag(Cov_epsilon))
+  Cor_epsilon <- Cov_epsilon / (sd_epsilon %*% t(sd_epsilon))
+  
+  # Transform raw factors to correlated depth layers
+  # omega_sc: [mesh$n x 4]
+  omega_sc <- omega_sc_raw %*% t(L_omega)
+  
+  # epsilon_sct: [mesh$n x 4 x t]
+  epsilon_sct <- array(0, dim = c(mesh$n, 4, max(t_i)))
+  for(t_index in 1:max(t_i)) {
+    epsilon_sct[,, t_index] <- epsilon_sct_raw[,, t_index] %*% t(L_epsilon)
+  }
+  
   omega_ic <- A_is %*% omega_sc
   
   # Likelihood terms
   # For the following lines: 1 = <0.5m, 2 = 0.5-3m, 3 = 3-16m, 4 = >16m
   nll_prior = nll_beta = nll_data = nll_epsilon = nll_omega = 0
-  yhat <- numeric(length(b_i))  # <--- Initialize vector here
+  yhat <- numeric(length(b_i))  # Initialize vector for reporting b_i
 
   for(i in seq_along(b_i)) {
     # BT covers all intervals from <0.5 to the effective fishing height (16m)
     if(Gear[i] == "BT") {
       yhat[i] <- exp(ln_q + sum(A_is[i, ] * epsilon_sct[, 1, t_i[i]]) + beta_ct[1, t_i[i]] + mu_c[1] + omega_ic[i, 1]) + 
-                exp(ln_q + sum(A_is[i, ] * epsilon_sct[, 2, t_i[i]]) + beta_ct[2, t_i[i]] + mu_c[2] + omega_ic[i, 2]) +
-                exp(ln_q + sum(A_is[i, ] * epsilon_sct[, 3, t_i[i]]) + beta_ct[3, t_i[i]] + mu_c[3] + omega_ic[i, 3])
+                 exp(ln_q + sum(A_is[i, ] * epsilon_sct[, 2, t_i[i]]) + beta_ct[2, t_i[i]] + mu_c[2] + omega_ic[i, 2]) +
+                 exp(ln_q + sum(A_is[i, ] * epsilon_sct[, 3, t_i[i]]) + beta_ct[3, t_i[i]] + mu_c[3] + omega_ic[i, 3])
     }
     # AT disaggregated into 0.5-3, 3-16, and >16
     if(Gear[i] == "AT1") yhat[i] <- exp(sum(A_is[i, ] * epsilon_sct[, 2, t_i[i]]) + beta_ct[2, t_i[i]] + mu_c[2] + omega_ic[i, 2])
@@ -133,53 +169,39 @@ jnll_spde <- function(parlist, what = "jnll") {
         )
       )
   }
+
+  # Evaluate GMRF likelihoods for latent factors
+  for(f_index in 1:4) {
+    nll_omega <- nll_omega - dgmrf(omega_sc_raw[, f_index], Q = Q_spatial, log = TRUE)
+  }
   
   for(t_index in 1:max(t_i)) {
-    for(c_index in 1:4) {
+    for(f_index in 1:4) {
       if(t_index == 1) {
-        nll_epsilon <- nll_epsilon - dgmrf(epsilon_sct[, c_index, t_index], 
-                                           Q = Q_epsilon,
-                                           log = TRUE)
+        nll_epsilon <- nll_epsilon - dgmrf(epsilon_sct_raw[, f_index, t_index], 
+                                           Q = Q_spatial, log = TRUE)
       } else {
-        nll_epsilon <- nll_epsilon - dgmrf(epsilon_sct[, c_index, t_index], 
-                                           mu = rho * epsilon_sct[, c_index, t_index - 1], 
-                                           Q = Q_epsilon,
-                                           log = TRUE)
+        nll_epsilon <- nll_epsilon - dgmrf(epsilon_sct_raw[, f_index, t_index], 
+                                           mu = rho * epsilon_sct_raw[, f_index, t_index - 1], 
+                                           Q = Q_spatial, log = TRUE)
       }
-    }}
-  
-  for(c_index in 1:4) {
-    nll_omega <- nll_omega - dgmrf(omega_sc[, c_index], 
-                                   Q = Q_omega, 
-                                   log = TRUE)
+    }
   }
   
   for(t_index in 1:max(t_i)) {
     for(c_index in 1:4) {
       if(t_index == 1) {
-        nll_beta <- nll_beta - dnorm(beta_ct[c_index, t_index], 
-                                     mean = 0, 
-                                     sd = sd, 
-                                     log = TRUE)
+        nll_beta <- nll_beta - dnorm(beta_ct[c_index, t_index], mean = 0, sd = sd, log = TRUE)
       } else {
-        nll_beta <- nll_beta - dnorm(beta_ct[c_index, t_index], 
-                                     mean = rho * beta_ct[c_index, t_index - 1], 
-                                     sd = sd, 
-                                     log = TRUE)
+        nll_beta <- nll_beta - dnorm(beta_ct[c_index, t_index], mean = rho * beta_ct[c_index, t_index - 1], sd = sd, log = TRUE)
       }
-    }}
+    }
+  }
   
   nll_prior <- -1 * dnorm(ln_q, mean = 0, sd = 0.15, log = TRUE)
   if(what == "jnll") out <- nll_data + nll_epsilon + nll_beta + nll_omega + nll_prior
-  if(what == "diag") {
-    out <- list(nll_data = nll_data,
-                nll_epsilon = nll_epsilon,
-                nll_beta = nll_beta,
-                nll_omega = nll_omega,
-                nll_prior = nll_prior)
-  }
   
-  # Make index
+  # Derived calculations & Index construction
   index_ct <- matrix(0, nrow = 4, ncol = max(t_i))
   omega_gc <- A_gs %*% omega_sc
   epsilon_gct = D_gct = array(0, dim = c(length(area_g), 4, max(t_i)))
@@ -189,7 +211,8 @@ jnll_spde <- function(parlist, what = "jnll") {
       epsilon_gct[, c_index, t_index] <- (A_gs %*% epsilon_sct[, c_index, t_index])[, 1]
       D_gct[, c_index, t_index] <- area_g * exp(A_gs %*% epsilon_sct[, c_index, t_index] + beta_ct[c_index, t_index] + mu_c[c_index] + omega_gc[, c_index])[, 1]
       index_ct[c_index, t_index] <- sum(area_g * exp(A_gs %*% epsilon_sct[, c_index, t_index] + beta_ct[c_index, t_index] + mu_c[c_index] + omega_gc[, c_index]))
-    }}
+    }
+  }
   
   # Only producing an index for the BT & AT surveys (for their respective intervals)
   Btrawl_t <- colSums(index_ct[1:3, ])
@@ -208,6 +231,10 @@ jnll_spde <- function(parlist, what = "jnll") {
   REPORT(Btrawl_t)
   REPORT(Baccoustic_t)
   REPORT(Btotal_t)
+  REPORT(Cor_omega)
+  REPORT(Cor_epsilon)
+  REPORT(Cov_omega)
+  REPORT(Cov_epsilon)
   # bias-correction and SEs (be parsimonious to avoid memory issue)
   # ADREPORT(Btrawl_t)
   # ADREPORT(Baccoustic_t)
@@ -217,6 +244,8 @@ jnll_spde <- function(parlist, what = "jnll") {
     ADREPORT(Paccoustic_t)
   }
   ADREPORT(index_ct)
+  ADREPORT(Cor_omega)
+  ADREPORT(Cor_epsilon)
   # ADREPORT(D_gct)  # too computationally expensive (CHOLMOD error 'problem too large')
   return(out)
 }
@@ -234,7 +263,7 @@ build_obj <- function() {
   MakeADFun( 
     func = jnll_spde,
     par = parlist,
-    random = c("epsilon_sct", "beta_ct", "omega_sc"),
+    random = c("epsilon_sct_raw", "beta_ct", "omega_sc_raw"),
     silent = TRUE,
     #profile = "mu_c",
     map = map,
