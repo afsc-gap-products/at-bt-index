@@ -702,3 +702,44 @@ avail_both
 
 ggsave(avail_both, filename = here(results_dir, "avail_both.png"),
        width = 150, height = 150, units = "mm", dpi = 300)
+
+# Covariance and correlation matrices -----------------------------------------
+# Extract correlation matrices
+cor_omega <- rep$Cor_omega
+cor_epsilon <- rep$Cor_epsilon
+rownames(cor_omega) <- colnames(cor_omega) <- depths
+rownames(cor_epsilon) <- colnames(cor_epsilon) <- depths
+
+# Extract covariance matrices
+cov_omega <- rep$Cov_omega
+cov_epsilon <- rep$Cov_epsilon
+rownames(cov_omega) <- colnames(cov_omega) <- depths
+rownames(cov_epsilon) <- colnames(cov_epsilon) <- depths
+
+# Plot as heatmap
+plot_heatmap <- function(mat, title, limits = c(-1, 1), is_correlation = TRUE) {
+  df <- melt(mat)
+  
+  p <- ggplot(df, aes(x = Var1, y = Var2, fill = value)) +
+    geom_tile(color = "white", linewidth = 0.5) +
+    geom_text(aes(label = sprintf("%.2f", value)), color = "white", size = 4) +
+    labs(title = title, x = "", y = "") 
+
+  if (is_correlation) {
+    p <- p + scale_fill_gradient2(low = "#7f3b08", mid = "white", high = "#2d094b", 
+                                 limits = limits, name = "Correlation")
+  } else {
+    p <- p + scale_fill_viridis(option = "inferno", begin = 0.1,end = 0.9, name = "Covariance")
+  }
+  return(p)
+}
+
+# Combine plots and save 
+cor_cov <- cowplot::plot_grid(
+  plot_heatmap(cor_omega, "Spatial Correlation (Omega)"), 
+  plot_heatmap(cor_epsilon, "Spatio-Temporal Correlation (Epsilon)"), 
+  plot_heatmap(cov_omega, "Spatial Covariance (Omega)", is_correlation = FALSE), 
+  plot_heatmap(cov_epsilon, "Spatio-Temporal Covariance (Epsilon)", is_correlation = FALSE), 
+  ncol = 2)
+cor_cov
+ggsave(here(results_dir, "correlation_covariance.png"), cor_cov, width = 10, height = 8, dpi = 300)
