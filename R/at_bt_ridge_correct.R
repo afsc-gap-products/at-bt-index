@@ -243,6 +243,7 @@ build_obj <- function() {
 }
 
 # Run model -------------------------------------------------------------------
+start <- Sys.time()
 obj <- build_obj()
 opt <- nlminb(obj$par, 
               obj$fn, 
@@ -270,6 +271,9 @@ sdrep <- sdreport(obj,
                   bias.correct = FALSE,
                   getReportCovariance = TRUE)
 rep <- obj$report()
+end <- Sys.time()
+runtime <- end - start
+cat("Model took", round(runtime, 2), attr(runtime, "units"), "\n")
 
 save(obj, opt, parlist, Hess, biascor, sdrep, rep, year_set, file = here(results_dir, "model.RData"))
 
