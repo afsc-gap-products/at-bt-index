@@ -214,12 +214,9 @@ jnll_spde <- function(parlist, what = "jnll") {
     }
   }
   
-  # Only producing an index for the BT & AT surveys (for their respective intervals)
-  Btrawl_t <- colSums(index_ct[1:3, ])
-  Baccoustic_t <- colSums(index_ct[2:4, ])
-  Btotal_t <- colSums(index_ct)
-  Ptrawl_t <- Btrawl_t / Btotal_t
-  Paccoustic_t <- Baccoustic_t / Btotal_t
+  # Calculate proportion available to BT & AT surveys (their respective intervals)
+  Ptrawl_t <- colSums(index_ct[1:3, ]) / colSums(index_ct)
+  Paccoustic_t <- colSums(index_ct[2:4, ]) / colSums(index_ct)
   
   # reports
   REPORT(index_ct)
@@ -228,24 +225,18 @@ jnll_spde <- function(parlist, what = "jnll") {
   REPORT(yhat)
   REPORT(Ptrawl_t)
   REPORT(Paccoustic_t)
-  REPORT(Btrawl_t)
-  REPORT(Baccoustic_t)
-  REPORT(Btotal_t)
   REPORT(Cor_omega)
   REPORT(Cor_epsilon)
   REPORT(Cov_omega)
   REPORT(Cov_epsilon)
   # bias-correction and SEs (be parsimonious to avoid memory issue)
-  # ADREPORT(Btrawl_t)
-  # ADREPORT(Baccoustic_t)
-  # ADREPORT(Btotal_t)
   if(isTRUE(extra_adreport)) {
     ADREPORT(Ptrawl_t)
     ADREPORT(Paccoustic_t)
   }
   ADREPORT(index_ct)
-  ADREPORT(Cor_omega)
-  ADREPORT(Cor_epsilon)
+  # ADREPORT(Cor_omega)
+  # ADREPORT(Cor_epsilon)
   # ADREPORT(D_gct)  # too computationally expensive (CHOLMOD error 'problem too large')
   return(out)
 }
@@ -272,6 +263,7 @@ build_obj <- function() {
 }
 
 # Run model -------------------------------------------------------------------
+start <- Sys.time()
 obj <- build_obj()
 opt <- nlminb(obj$par, 
               obj$fn, 
@@ -297,8 +289,11 @@ sdrep <- sdreport(obj,
                   par.fixed = opt$par,
                   hessian.fixed = Hess, 
                   bias.correct = FALSE,
-                  getReportCovariance = TRUE)
+                  getReportCovariance = FALSE)
 rep <- obj$report()
+end <- Sys.time()
+runtime <- end - start
+cat("Model took", round(runtime, 2), attr(runtime, "units"), "\n")
 
 save(obj, opt, parlist, Hess, biascor, sdrep, rep, year_set, file = here(results_dir, "model.RData"))
 
