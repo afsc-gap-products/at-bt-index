@@ -178,6 +178,7 @@ jnll_spde <- function(parlist, what = "jnll") {
                 nll_omega = nll_omega,
                 nll_prior = nll_prior)
   }
+  if(what == "cond") out <- nll_data  # for cAIC
   
   # Make index
   index_ct <- matrix(0, nrow = 4, ncol = max(t_i))
@@ -208,6 +209,7 @@ jnll_spde <- function(parlist, what = "jnll") {
   REPORT(Btrawl_t)
   REPORT(Baccoustic_t)
   REPORT(Btotal_t)
+  REPORT(nll_data)
   # bias-correction and SEs (be parsimonious to avoid memory issue)
   # ADREPORT(Btrawl_t)
   # ADREPORT(Baccoustic_t)
@@ -677,3 +679,59 @@ avail_both
 
 ggsave(avail_both, filename = here(results_dir, "avail_both.png"),
        width = 150, height = 150, units = "mm", dpi = 300)
+
+# Calculate cAIC --------------------------------------------------------------
+library(Matrix)
+
+# Extract conditional negative log-likelihood
+nll_cond <- obj$report()$nll_data
+
+# Fixed effect degrees of freedom (number of estimated non-random parameters)
+p_fixed <- length(opt$par)
+
+# Create map to fix all parameters except random effects at their MLE values
+parlist_hat <- obj$env$parList()
+map_all_fixed <- lapply(parlist_hat, function(x) factor(rep(NA, length(x))))
+
+# Un-map the random effect structures so they are treated as active parameters
+map_all_fixed$epsilon_sct <- NULL
+map_all_fixed$beta_ct     <- NULL
+map_all_fixed$omega_sc    <- NULL
+
+# Build temporary RTMB objects for random effect Hessians (without random = ...)
+obj_u_joint <- MakeADFun(
+  func = function(p) jnll_spde(p, what = "jnll"),
+  par  = parlist_hat,
+  map  = map_all_fixed,
+  silent = TRUE
+)
+
+obj_u_cond <- MakeADFun(
+  func = function(p) jnll_spde(p, what = "cond"),
+  par  = parlist_hat,
+  map  = map_all_fixed,
+  silent = TRUE
+)
+
+# Extract empirical Bayes estimates vector for random effects
+u_hat <- obj_u_joint$par
+
+# Compute sparse Hessians w.r.t. random effects
+H_joint <- obj_u_joint$he(u_hat)  # Sparse joint Hessian
+H_cond  <- obj_u_cond$he(u_hat)   # Sparse conditional Hessian
+
+# Calculate Effective Degrees of Freedom for random effects: tr(H_joint^-1 * H_cond)
+edf_u <- sum(diag(Matrix::solve(H_joint, H_cond)))
+
+# Total Effective Degrees of Freedom and cAIC
+EDF <- p_fixed + edf_u
+EDF
+cAIC <- 2 * nll_cond + 2 * EDF
+cAIC
+
+# Make a table and write to .csv
+caic_table <- data.frame(
+  Metric = c("Conditional NLL", "Fixed Effect DF", "Random Effect EDF", "Total EDF", "cAIC"),
+  Value  = c(nll_cond, p_fixed, edf_u, EDF, cAIC)
+)
+write.csv(caic_table, file = here(results_dir, "cAIC.csv"), row.names = FALSE)
