@@ -23,10 +23,10 @@ sf_use_s2(FALSE)  # turn off spherical geometry
 select_years <- c(2007, 2010, 2013, 2017, 2021, 2024)
 
 # Set where to read data from
-results_dir <- here("Results", "Results 8-13-26")
+results_dir <- here("Results", "Correlations")
 
 # Set output directory 
-out_dir <- here("output", "figures")
+out_dir <- here("output", "figures", "correlations")
 dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
 
 # Conceptual model ------------------------------------------------------------
@@ -230,15 +230,15 @@ ggsave(
   width = 11, height = 5, units = "in", dpi = 300
 )
  
-# Comparison plots of the model with and without AVO --------------------------
+# Comparison plots ------------------------------------------------------------
 # Proportion available by depth
 depth_prop <- bind_rows(
   bind_cols(
-    read.csv(here("Results", "new_avo_years", "availability_depth.csv")), 
-    Model = "All Surveys"),
+    read.csv(here("Results", "Results 8-13-26", "availability_depth.csv")), 
+    Model = "Original"),
   bind_cols(
-    read.csv(here("Results", "no AVO updated", "availability_depth.csv")),
-    Model = "No AVO"
+    read.csv(here("Results", "Correlations", "availability_depth.csv")),
+    Model = "Correlations"
   )
 ) %>%
   mutate(Height = factor(Height, levels = c(">16m", "3-16m", "0.5-3m", "<0.5m"))) %>%
@@ -258,11 +258,11 @@ ggsave(
 # Proportion available by gear type
 gear_prop <- bind_rows(
   bind_cols(
-    read.csv(here("Results", "new_avo_years", "availability_gear.csv")), 
-    Model = "All Surveys"),
+    read.csv(here("Results", "Results 8-13-26", "availability_gear.csv")), 
+    Model = "Orignal"),
   bind_cols(
-    read.csv(here("Results", "no AVO updated", "availability_gear.csv")),
-    Model = "No AVO"
+    read.csv(here("Results", "Correlations", "availability_gear.csv")),
+    Model = "Correlations"
   )
 ) %>%
   ggplot(.) +
@@ -283,11 +283,11 @@ ggsave(
 # Biomass available by depth
 ind_depth_compare <- bind_rows(
   bind_cols(
-    read.csv(here("Results", "new_avo_years", "index_depth.csv")), 
-    Model = "All Surveys"),
+    read.csv(here("Results", "Results 8-13-26", "index_depth.csv")), 
+    Model = "Original"),
   bind_cols(
-    read.csv(here("Results", "no AVO updated", "index_depth.csv")),
-    Model = "No AVO"
+    read.csv(here("Results", "Correlations", "index_depth.csv")),
+    Model = "Correlations"
   )
 ) %>%
   mutate(Height = factor(Height, levels = c(">16m", "3-16m", "0.5-3m", "<0.5m"))) %>%
@@ -308,18 +308,18 @@ ggsave(
 
 # Total biomass by survey (compared to assessment index) ----------------------
 index_gear <- bind_rows(
-  read.csv(here("Results", "new_avo_years", "index_depth.csv")) %>%
+  read.csv(here("Results", "Results 8-13-26", "index_depth.csv")) %>%
     mutate(Gear = case_when(
       Height %in% c("<0.5m", "0.5-3m", "3-16m") ~ "BT",
       Height %in% c("0.5-3m", "3-16m", ">16m") ~ "AT"
     )) %>%
-    mutate(Model = "All Surveys"),
-  read.csv(here("Results", "no AVO updated", "index_depth.csv")) %>%
+    mutate(Model = "Original"),
+  read.csv(here("Results", "Correlations", "index_depth.csv")) %>%
     mutate(Gear = case_when(
       Height %in% c("<0.5m", "0.5-3m", "3-16m") ~ "BT",
       Height %in% c("0.5-3m", "3-16m", ">16m") ~ "AT"
     )) %>% 
-    mutate(Model = "No AVO")
+    mutate(Model = "Correlations")
 ) %>%
   summarize(
     .by = c(Year, Gear, Model),
