@@ -27,6 +27,7 @@ library(dplyr)
 library(remotes)
 library(reshape2)
 library(tidyr)
+library(DHARMa)
 
 if (!requireNamespace("akgfmaps", quietly = TRUE)) {
   pak::pkg_install("afsc-gap-products/akgfmaps")
@@ -39,7 +40,7 @@ if (!requireNamespace("ggsidekick", quietly = TRUE)) {
 library(ggsidekick)
 theme_set(theme_sleek())
 
-results_dir <- here("Results", "stvc_avo")
+results_dir <- here("Results", "new_avo_years")
 if (!dir.exists(results_dir)) {
   dir.create(results_dir, recursive = TRUE)
 }
@@ -49,11 +50,13 @@ year <- 2025  # static for now (but set up for updating annually)
 dat <- read.csv(here("data", year, "dat_all.csv")) 
 #dat <- read.csv(here("data", year, "dat_bt_constrained.csv")) 
 
-
+dat <- dat %>%
+  filter(!(Year == 2010 & Gear %in% c("AVO2", "AVO3") & Lon > -160))
 # # Thin AVO3 samples
 # which_AVO3 <- which(dat$Gear == "AVO3")
 # which_drop <- sample(which_AVO3, replace = FALSE, size = floor(length(which_AVO3) * 0.5))
 # dat <- dat[-which_drop, ]
+
 
 # Set up grid 
 dat_sf <- st_as_sf(dat, coords = c("Lon", "Lat"))
@@ -101,11 +104,13 @@ M2 <- spde$g2  # stiffness matrix (second derivative / Laplacian)
 
 parlist <- list(
   mu_c = rep(0, 4),
+  ln_mu_q = 0,
   beta_ct = array(0, dim = c(4, max(t_i))),
   epsilon_sct = array(0, dim = c(mesh$n, 4, max(t_i))),
   omega_sc = array(0, dim = c(mesh$n, 4)),
-  gamma_bs = matrix(0, nrow = 2, ncol = max(t_i)),
-  xi_bs = array(0, dim = c(mesh$n, 2, max(t_i))),
+  beta_q_ct = array(0, dim = c(1, max(t_i))),
+  epsilon_q_sct = array(0, dim = c(mesh$n, 1, max(t_i))),
+  omega_q_sc = array(0, dim = c(mesh$n, 1)),
   ln_kappa = log(1), # log-spatial scale parameter
   ln_tau_omega = log(1),
   ln_tau_epsilon = log(1),
@@ -114,10 +119,11 @@ parlist <- list(
   invf_p = 0,
   invf_rho = 1,
   ln_sd = log(0.1),
-  ln_tau_xi = log(1),
-  ln_kappa_xi = log(1),  
-  invf_rho_xi = 1,
-  ln_sigma_gamma = log(0.2)
+  ln_tau_epsilon_q = log(1),
+  ln_tau_omega_q = log(1),
+  ln_kappa_q = log(1),  
+  invf_rho_q = 1,
+  ln_sd_q = log(0.2)
 )
 
 # Model construction ----------------------------------------------------------
@@ -129,49 +135,45 @@ jnll_spde <- function(parlist, what = "jnll") {
   p <- plogis(invf_p) + 1 # tweedie power param
   Q_omega <- (exp(4 * ln_kappa) * M0 + 2 * exp(2 * ln_kappa) * M1 + M2) * exp(2 * ln_tau_omega)
   Q_epsilon <- (exp(4 * ln_kappa) * M0 + 2 * exp(2 * ln_kappa) * M1 + M2) * exp(2 * ln_tau_epsilon)
-  Q_xi <- (exp(4 * ln_kappa_xi) * M0 + 2 * exp(2 * ln_kappa_xi) * M1 + M2) * exp(2 * ln_tau_xi)
+  Q_epsilon_q <- (exp(4 * ln_kappa_q) * M0 + 2 * exp(2 * ln_kappa_q) * M1 + M2) * exp(2 * ln_tau_epsilon_q)
+  Q_omega_q <- (exp(4 * ln_kappa_q) * M0 + 2 * exp(2 * ln_kappa_q) * M1 + M2) * exp(2 * ln_tau_omega_q)
   rho <- invf_rho # plogis(), controls how strongly spatiotemporal anomalies are linked from year to year
-  rho_xi <- invf_rho_xi
+  rho_q <- invf_rho_q
   sd <- exp(ln_sd)
+  sd_q <- exp(ln_sd_q)
   omega_ic <- A_is %*% omega_sc
+  omega_q_ic <- A_is %*% omega_q_sc
   
   # Likelihood terms
   # For the following lines: 1 = <0.5m, 2 = 0.5-3m, 3 = 3-16m, 4 = >16m
-  nll_prior = nll_beta = nll_data = nll_epsilon = nll_omega = nll_xi = nll_gamma = 0
-  yhat <- numeric(length(b_i))  # Initialize vector for reporting b_i
-  
+  nll_prior = nll_beta = nll_data = nll_epsilon = nll_omega = nll_epsilon_q = nll_beta_q = nll_omega_q = nll_prior_q = 0
   for(i in seq_along(b_i)) {
     # BT covers all intervals from <0.5 to the effective fishing height (16m)
     # yhat is expected density
     if(Gear[i] == "BT") {
-      yhat[i] <- exp(ln_q + sum(A_is[i, ] * epsilon_sct[, 1, t_i[i]]) + beta_ct[1, t_i[i]] + mu_c[1] + omega_ic[i, 1]) + 
+      yhat <- exp(ln_q + sum(A_is[i, ] * epsilon_sct[, 1, t_i[i]]) + beta_ct[1, t_i[i]] + mu_c[1] + omega_ic[i, 1]) + 
         exp(ln_q + sum(A_is[i, ] * epsilon_sct[, 2, t_i[i]]) + beta_ct[2, t_i[i]] + mu_c[2] + omega_ic[i, 2]) +
         exp(ln_q + sum(A_is[i, ] * epsilon_sct[, 3, t_i[i]]) + beta_ct[3, t_i[i]] + mu_c[3] + omega_ic[i, 3])
     }
     # AT disaggregated into 0.5-3, 3-16, and >16
-    if(Gear[i] == "AT1") yhat[i] <- exp(sum(A_is[i, ] * epsilon_sct[, 2, t_i[i]]) + beta_ct[2, t_i[i]] + mu_c[2] + omega_ic[i, 2])
-    if(Gear[i] == "AT2") yhat[i] <- exp(sum(A_is[i, ] * epsilon_sct[, 3, t_i[i]]) + beta_ct[3, t_i[i]] + mu_c[3] + omega_ic[i, 3]) 
-    if(Gear[i] == "AT3") yhat[i] <- exp(sum(A_is[i, ] * epsilon_sct[, 4,t_i[i]]) + beta_ct[4, t_i[i]] + mu_c[4] + omega_ic[i, 4])
+    if(Gear[i] == "AT1") yhat <- exp(sum(A_is[i, ] * epsilon_sct[, 2, t_i[i]]) + beta_ct[2, t_i[i]] + mu_c[2] + omega_ic[i, 2])
+    if(Gear[i] == "AT2") yhat <- exp(sum(A_is[i, ] * epsilon_sct[, 3, t_i[i]]) + beta_ct[3, t_i[i]] + mu_c[3] + omega_ic[i, 3]) 
+    if(Gear[i] == "AT3") yhat <- exp(sum(A_is[i, ] * epsilon_sct[, 4,t_i[i]]) + beta_ct[4, t_i[i]] + mu_c[4] + omega_ic[i, 4])
     
     # AVO only available for 3-16 and >16 - do svtc here for AVO
     if(Gear[i] == "AVO2") {
-      xi_i3 <- sum(A_is[i, ] * xi_bs[, 1, t_i[i]])
-      stvc_term_3 <- gamma_bs[1, t_i[i]] + xi_i3
-      yhat[i] <- exp(sum(A_is[i, ] * epsilon_sct[, 3, t_i[i]]) + beta_ct[3, t_i[i]] + mu_c[3] + omega_ic[i, 3] + stvc_term_3)
-    
-    
+      stvc_term <- sum(A_is[i, ] * epsilon_q_sct[, 1, t_i[i]]) + beta_q_ct[1, t_i[i]] + omega_q_ic[i, 1] + ln_mu_q
+      yhat <- exp(sum(A_is[i, ] * epsilon_sct[, 3, t_i[i]]) + beta_ct[3, t_i[i]] + mu_c[3] + omega_ic[i, 3] + stvc_term)
     }
     
     if(Gear[i] == "AVO3") {
-      xi_i4 <- sum(A_is[i, ] * xi_bs[, 2, t_i[i]])
-      stvc_term_4 <- gamma_bs[2, t_i[i]] + xi_i4
-      yhat[i] <- exp(sum(A_is[i, ] * epsilon_sct[, 4, t_i[i]]) + beta_ct[4, t_i[i]] + mu_c[4] + omega_ic[i, 4] + stvc_term_4)
+      stvc_term <- sum(A_is[i, ] * epsilon_q_sct[, 1, t_i[i]]) + beta_q_ct[1, t_i[i]] + omega_q_ic[i, 1] + ln_mu_q
+      yhat <- exp(sum(A_is[i, ] * epsilon_sct[, 4, t_i[i]]) + beta_ct[4, t_i[i]] + mu_c[4] + omega_ic[i, 4] + stvc_term)
     
     }
     
-      
     nll_data <- nll_data - RTMB:::Term(dtweedie(x = b_i[i], 
-                                                mu = yhat[i], 
+                                                mu = yhat, 
                                                 phi = phi,
                                                 p = p, 
                                                 log = TRUE))
@@ -190,40 +192,6 @@ jnll_spde <- function(parlist, what = "jnll") {
                                            log = TRUE)
       }
     }}
-  
-  for(c_index in 1:2) { # Layers 3 & 4
-    
-    # 1. Year 1 initial prior (anchors Year 1 near 0)
-    nll_gamma <- nll_gamma - dnorm(gamma_bs[c_index, 1], mean = 0, sd = 1, log = TRUE)
-    
-    # 2. Years 2+ random walk transition
-    for(t_index in 2:max(t_i)) {
-      nll_gamma <- nll_gamma - dnorm(
-        x    = gamma_bs[c_index, t_index],
-        mean = gamma_bs[c_index, t_index - 1],
-        sd   = exp(ln_sigma_gamma),
-        log  = TRUE
-      )
-    }
-  }
-  
-  for(t_index in 1:max(t_i)) {
-    for(c_index in 1:2) { # Only evaluate for midwater layers (Layer 3 & 4)
-      if(t_index == 1) {
-        # Year 1: Baseline Matérn GMRF field across spatial knots
-        nll_xi <- nll_xi - dgmrf(xi_bs[, c_index, t_index], 
-                                 Q = Q_xi, 
-                                 log = TRUE)
-      } else {
-        # Years 2+: AR(1) temporal transition over years
-        nll_xi <- nll_xi - dgmrf(xi_bs[, c_index, t_index], 
-                                 mu = rho_xi * xi_bs[, c_index, t_index - 1], 
-                                 Q = Q_xi, 
-                                 log = TRUE)
-      }
-    }
-  }
-  
   
   for(c_index in 1:4) {
     nll_omega <- nll_omega - dgmrf(omega_sc[, c_index], 
@@ -246,22 +214,62 @@ jnll_spde <- function(parlist, what = "jnll") {
       }
     }}
   
+
+  
+  for(t_index in 1:max(t_i)) {
+      if(t_index == 1) {
+        # Year 1: Baseline Matérn GMRF field across spatial knots
+        nll_epsilon_q <- nll_epsilon_q - dgmrf(epsilon_q_sct[, 1, t_index], 
+                                 Q = Q_epsilon_q, 
+                                 log = TRUE)
+      } else {
+        # Years 2+: AR(1) temporal transition over years
+        nll_epsilon_q <- nll_epsilon_q - dgmrf(epsilon_q_sct[, 1, t_index], 
+                                 mu = rho_q * epsilon_q_sct[, 1, t_index - 1], 
+                                 Q = Q_epsilon_q, 
+                                 log = TRUE)
+      }
+    }
+  
+  
+    
+    # 1. Year 1 initial prior (anchors Year 1 near 0)
+    nll_beta_q <- nll_beta_q - dnorm(beta_q_ct[1, 1], mean = 0, sd = 1, log = TRUE)
+    
+    # 2. Years 2+ random walk transition
+    for(t_index in 2:max(t_i)) {
+      nll_beta_q <- nll_beta_q - dnorm(
+        x    = beta_q_ct[1, t_index],
+        mean = beta_q_ct[1, t_index - 1],
+        sd   = sd_q,
+        log  = TRUE
+      )
+    }
+  
+    nll_omega_q <- nll_omega_q - dgmrf(omega_q_sc[, 1], 
+                                   Q = Q_omega_q, 
+                                   log = TRUE)
+
+  nll_prior_q <- -1 * sum(dnorm(epsilon_q_sct, mean = 0, sd = 0.35, log = TRUE))
   nll_prior <- -1 * dnorm(ln_q, mean = 0, sd = 0.15, log = TRUE)
-  if(what == "jnll") out <- nll_data + nll_epsilon + nll_beta + nll_omega + nll_prior + nll_xi + nll_gamma
+  if(what == "jnll") out <- nll_data + nll_epsilon + nll_beta + nll_omega + nll_prior + nll_prior_q + nll_epsilon_q + nll_beta_q + nll_omega_q
   if(what == "diag") {
     out <- list(nll_data = nll_data,
                 nll_epsilon = nll_epsilon,
                 nll_beta = nll_beta,
                 nll_omega = nll_omega,
                 nll_prior = nll_prior,
-                nll_gamma = nll_gamma,
-                nll_xi = nll_xi)
+                nll_beta_q = nll_beta_q,
+                nll_epsilon_q = nll_epsilon_q,
+                nll_omega_q = nll_omega_q,
+                nll_prior_q   = nll_prior_q)
   }
   
   # Make index
   index_ct <- matrix(0, nrow = 4, ncol = max(t_i))
   omega_gc <- A_gs %*% omega_sc
-  epsilon_gct = D_gct = xi_gct = array(0, dim = c(length(area_g), 4, max(t_i)))
+  omega_q_gc <- A_gs %*% omega_q_sc
+  epsilon_gct = D_gct = epsilon_q_gct = array(0, dim = c(length(area_g), 4, max(t_i)))
   
   for(t_index in 1:max(t_i)) {
     for(c_index in 1:4) {
@@ -271,9 +279,7 @@ jnll_spde <- function(parlist, what = "jnll") {
     }}
   
   for(t_index in 1:max(t_i)) {
-    for(c_index in 1:2) {
-      xi_gct[, c_index, t_index] <- (A_gs %*% xi_bs[, c_index, t_index])[, 1]
-    }
+      epsilon_q_gct[, 1, t_index] <- (A_gs %*% epsilon_q_sct[, 1, t_index] + beta_q_ct[1,t_index] + ln_mu_q + omega_q_gc)[, 1]
   }
   
   # Only producing an index for the BT & AT surveys (for their respective intervals)
@@ -293,7 +299,7 @@ jnll_spde <- function(parlist, what = "jnll") {
   REPORT(Btrawl_t)
   REPORT(Baccoustic_t)
   REPORT(Btotal_t)
-  REPORT(xi_gct)
+  REPORT(epsilon_q_gct)
   # bias-correction and SEs (be parsimonious to avoid memory issue)
   # ADREPORT(Btrawl_t)
   # ADREPORT(Baccoustic_t)
@@ -321,7 +327,7 @@ build_obj <- function() {
   MakeADFun( 
     func = jnll_spde,
     par = parlist,
-    random = c("epsilon_sct", "beta_ct", "omega_sc","xi_bs","gamma_bs"),
+    random = c("epsilon_sct", "beta_ct", "omega_sc", "epsilon_q_sct", "beta_q_ct", "omega_q_sc"),
     silent = FALSE,
     #profile = "mu_c",
     map = map,
@@ -405,13 +411,15 @@ param_table <- as.data.frame(summary(sdrep, "fixed")) %>%
 param_table$parameter <- rownames(param_table)
 rownames(param_table) <- NULL
 param_table$description <- case_when(
-  grepl("mu_c", param_table$parameter) ~ "Median for layer",
-  grepl("log_catchability", param_table$parameter) ~ "Log catchability for AVO",
-  grepl("ln_kappa", param_table$parameter) ~ "Spatial decorrelation rate",
-  grepl("ln_tau_omega", param_table$parameter) ~ "Spatial variance per distance",
-  grepl("ln_tau_epsilon", param_table$parameter) ~ "Spatio-temporal variance per distance",
-  grepl("ln_phi", param_table$parameter) ~ "Tweedie dispersion parameter",
-  grepl("invf_p", param_table$parameter) ~ "Tweedie power parameter",
+  grepl("mu_c", param_table$parameter) ~ "Depth interval intercept",
+  grepl("beta_ct", param_table$parameter) ~ "Depth interval year effect",
+  grepl("ln_q", param_table$parameter) ~ "Log catchability (AVO vs BT/AT)",
+  grepl("ln_kappa", param_table$parameter) ~ "Log spatial range parameter",
+  grepl("ln_tau_omega", param_table$parameter) ~ "Log precision of spatial random effect",
+  grepl("ln_tau_epsilon", param_table$parameter) ~ "Log precision of spatio-temporal random effect",
+  grepl("ln_phi", param_table$parameter) ~ "Log Tweedie dispersion parameter",
+  grepl("invf_p", param_table$parameter) ~ "Inverse logit Tweedie p parameter",
+  grepl("invf_rho", param_table$parameter) ~ "Rho (temporal autocorrelation)",
   grepl("ln_sd", param_table$parameter) ~ "Log SD of AR(1) process for beta_ct"
 )
 
@@ -439,9 +447,14 @@ prop_ct <- sweep(index_ct, MARGIN = 2, STAT = colSums(index_ct), FUN = "/")
 prop_bt <- colSums(index_ct[1:3, ]) / colSums(index_ct)
 prop_at <- colSums(index_ct[2:4, ]) / colSums(index_ct)
 
+
+# ==============================================================================
+# Compute and plot residuals
+# ==============================================================================
+
 # Residuals -------------------------------------------------------------------
 # Get model outputs and fitted values
-yhat <- rep$yhat 
+yhat <- rep$yhat
 
 # Extract Tweedie parameters
 p <- plogis(opt$par["invf_p"]) + 1  # transform back to (1, 2)
@@ -454,9 +467,9 @@ simulated_data <- matrix(NA, nrow = length(b_i), ncol = n_sims)
 for (i in seq_len(n_sims)) {
   # rtweedie accepts a vector for mu
   simulated_data[, i] <- tweedie::rtweedie(
-    n = length(b_i), 
-    mu = yhat, 
-    phi = phi, 
+    n = length(b_i),
+    mu = yhat,
+    phi = phi,
     power = p
   )
 }
@@ -487,7 +500,7 @@ residuals_df <- data.frame(
   Year = dat$Year,
   Gear = dat$Gear,
   Residual = residuals(simulated_residuals, quantileFunction = qnorm)
-) 
+)
 
 # Convert residuals to sf points
 residuals_sf <- st_as_sf(residuals_df, coords = c("Lon", "Lat"), crs = 4326)
@@ -522,95 +535,78 @@ for(i in 1:length(gears)) {
     scale_fill_distiller(palette = "PuOr") +
     facet_wrap(~Year) +
     labs(
-      fill = "Residual", 
-      color = "Residual", 
+      fill = "Residual",
+      color = "Residual",
       title = gears[i]
     ) +
     theme(
       axis.title = element_blank(),
       axis.text = element_blank(),
       axis.ticks = element_blank()
-    ) 
-  
+    )
+
   ggsave(filename = here(results_dir, paste0("residuals_", gears[i], ".png")),
          width = 8, height = 5, units = "in", dpi = 300)
 }
 
-# Pairwise predicted random effects -------------------------------------------
-eps_array <- as.list(sdrep, report = FALSE, what = "Estimate")$epsilon_sct
 
-effect_df <- data.frame(
-  depth1 = as.vector(eps_array[, 1, ]),
-  depth2 = as.vector(eps_array[, 2, ]),
-  depth3 = as.vector(eps_array[, 3, ]),
-  depth4 = as.vector(eps_array[, 4, ])
+# Predicted random effects ----------------------------------------------------
+eps_array <- as.list(sdrep, report = FALSE, what = "Estimate")$epsilon_sct
+eps_by_depth <- lapply(1:4, function(c) {
+  as.vector(eps_array[, c, ])
+})
+
+pair_df <- data.frame(
+  depth1 = eps_by_depth[[1]],
+  depth2 = eps_by_depth[[2]],
+  depth3 = eps_by_depth[[3]],
+  depth4 = eps_by_depth[[4]]
 )
 
 # Code up color by survey data availability
-survey_status_by_year <- ifelse(
-  year_set %in% c(2007, 2008), "no AVO",
-  ifelse(year_set %in% c(2011, 2013, 2015, 2017), "no AT", "all surveys")
-) %>%
-  factor(levels = c("all surveys", "no AVO", "no AT"))
+year_key <- rep(year_set, each = dim(eps_array))
+year_key <- case_when(year_key %in% c(2007, 2008) ~ "no AVO",
+                      year_key %in% c(2011, 2013, 2015, 2017) ~ "no AT",
+                      TRUE ~ "all surveys")
+
+# Plot pairwise by depth category
+pairwise <- function(var1, var2, label1, label2) {
+  df <- cbind.data.frame(var1 = var1, var2 = var2, surveys = year_key)
+  range_limits <- range(c(df[, 1], df[, 2]))
+  
+  pair_plot <- ggplot(df, aes(x = var1, y = var2, color = surveys)) +
+    geom_point(alpha = 0.3) +
+    geom_abline(intercept = 0, slope = 1, linetype = "dashed") +
+    coord_fixed(xlim = range_limits, ylim = range_limits) +
+    scale_color_viridis(discrete = TRUE, begin = 0.3) +
+    xlab(label1) + ylab(label2) + labs(color = NULL)
+  
+  return(pair_plot)
+}
 
 depths <- c("<0.5m", "0.5-3m", "3-16m", ">16m")
 
-pairwise_plots <- function(df, labels, survey_status, transform = identity) {
-  pairs <- combn(seq_len(ncol(df)), 2, simplify = FALSE)
-  plot_list <- lapply(seq_along(pairs), function(i) {
-    idx <- pairs[[i]]
-    x <- transform(df[[idx[1]]])
-    y <- transform(df[[idx[2]]])
-    df_plot <- cbind.data.frame(var1 = x, var2 = y, surveys = survey_status)
-    range_limits <- range(c(df_plot$var1, df_plot$var2), na.rm = TRUE)
-    
-    ggplot(df_plot, aes(x = var1, y = var2, color = surveys)) +
-      geom_point(alpha = 0.3) +
-      geom_abline(intercept = 0, slope = 1, linetype = "dashed") +
-      coord_fixed(xlim = range_limits, ylim = range_limits) +
-      scale_color_viridis(begin = 0.1, end = 0.9, discrete = TRUE) +
-      xlab(labels[idx[1]]) +
-      ylab(labels[idx[2]]) +
-      labs(color = NULL)
-  })
+# Generate all unique pairs
+pairs <- combn(1:4, 2, simplify = FALSE)
+labs <- combn(depths, 2, simplify = FALSE)
+
+plot_list <- list()
+# Loop over each pair
+for(i in seq_along(pairs)) {
+  pair <- pairs[[i]]
+  lab  <- labs[[i]]  # plot labels
   
-  combined_plot <- cowplot::plot_grid(plotlist = plot_list, ncol = 2)
+  cat1 <- pair_df[, pair[1]]
+  cat2 <- pair_df[, pair[2]]
   
-  return(combined_plot)
+  p <- pairwise(cat1, cat2, lab[1], lab[2])
+  
+  plot_list[[length(plot_list) + 1]] <- p
 }
 
-year_key <- rep(survey_status_by_year, each = dim(eps_array)[1])
-pairwise_effects <- pairwise_plots(
-  df = effect_df,
-  labels = depths,
-  survey_status = year_key,
-  transform = identity
-)
-pairwise_effects
-ggsave(pairwise_effects, filename = here(results_dir, "pairwise_effects.png"),
-       width = 150, height = 150, units = "mm", dpi = 300, bg = "white")
-
-# Pairwise predicted density by depth -----------------------------------------
-Dhat_by_depth <- lapply(1:4, function(c) {
-  as.vector(Dhat_gct[, c, ])
-})
-
-density_df <- data.frame(
-  depth1 = Dhat_by_depth[[1]],
-  depth2 = Dhat_by_depth[[2]],
-  depth3 = Dhat_by_depth[[3]],
-  depth4 = Dhat_by_depth[[4]]
-)
-
-density_year_key <- rep(survey_status_by_year, each = nrow(Dhat_gct))
-pairwise_density <- pairwise_plots(
-  df = density_df,
-  labels = depths,
-  survey_status = density_year_key,
-  transform = log
-)
-pairwise_density
-ggsave(pairwise_density, filename = here(results_dir, "pairwise_density.png"),
+combined_plot <- cowplot::plot_grid(plotlist = plot_list, ncol = 2)
+combined_plot
+ggsave(combined_plot, file = here(results_dir, "pairwise_effects.png"),  
        width = 150, height = 150, units = "mm", dpi = 300, bg = "white")
 
 # Plot densities & spatiotemporal term ----------------------------------------
@@ -619,7 +615,7 @@ plot_spatial_data <- function(grid, data_array, year_set, interval_labels, outpu
   
   for(c_index in 1:n_intervals) {
     slice <- data_array[, c_index, , drop = FALSE]
-    
+
     # Convert to long data frame
     df <- as.data.frame(slice)
     colnames(df) <- year_set
@@ -636,7 +632,7 @@ plot_spatial_data <- function(grid, data_array, year_set, interval_labels, outpu
     if(log_transform == TRUE) {
       plotgrid_long$value <- log(plotgrid_long$value)
     }
-    
+
     ggplot(plotgrid_long) +
       geom_sf(aes(fill = value, color = value)) +
       scale_fill_viridis(na.value = NA) +
@@ -666,8 +662,8 @@ plot_spatial_data(grid, Dhat_gct, year_set, interval_labels, "Densities", log_tr
 plot_spatial_data(grid, epshat_gct, year_set, interval_labels, "eps", log_transform = FALSE)
 
 # Log density by survey 
-D_bt_gt <- apply(Dhat_gct[, 1:3, ], c(1,3), sum)  # BT
-D_at_gt <- apply(Dhat_gct[, 2:4, ], c(1,3), sum)  # AT
+D_bt_gt <- apply(Dhat_gct[, 1:3, ], c(1,3), sum)        # BT
+D_at_gt <- apply(Dhat_gct[, 2:4, ], c(1,3), sum)        # AT
 D_gzt <- array(NA, dim = c(nrow(D_bt_gt), 2, ncol(D_bt_gt)))  # Combine into one array [g, c_index, t]
 D_gzt[, 1, ] <- D_bt_gt
 D_gzt[, 2, ] <- D_at_gt
@@ -718,10 +714,8 @@ gear_plot <- ggplot() +
              aes(x = Year, y = Proportion, color = Gear, shape = Gear)) +
   geom_ribbon(data = avail_gear, 
               aes(x = Year, ymin = (Proportion - 2 * SD), ymax = (Proportion + 2 * SD), fill = Gear), alpha = 0.4) +
-  scale_color_manual(values = c("#35a1ab", "#3d5297")) +
-  scale_fill_manual(values = c("#35a1ab", "#3d5297")) +
-  ylim(0, NA) +
-  xlab("")
+  scale_color_manual(values = c("#93329E", "#A4C400")) +
+  scale_fill_manual(values = c("#93329E", "#A4C400"))
 gear_plot
 
 ggsave(gear_plot, filename = here(results_dir, "avail_gear_plot.png"),
@@ -742,8 +736,7 @@ write.csv(avail_depth, here(results_dir, "availability_depth.csv"), row.names = 
 depth_plot <- ggplot(avail_depth) +
   geom_bar(aes(x = Year, y = Proportion, fill = Height), 
            position = "fill", stat = "identity") +
-  scale_fill_viridis(option = "mako", discrete = TRUE, direction = -1, begin = 0.1, end = 0.9) +
-  xlab("")
+  scale_fill_viridis(option = "mako", discrete = TRUE, direction = -1, begin = 0.1, end = 0.9)
 depth_plot
 
 ggsave(depth_plot, filename = here(results_dir, "avail_depth_plot.png"),
@@ -778,7 +771,7 @@ ind_depth_plot <- ggplot() +
               aes(x = Year, ymin = (Estimate - 2 * SD), ymax = (Estimate + 2 * SD), fill = Height), alpha = 0.4) +
   scale_color_viridis(option = "mako", discrete = TRUE, direction = -1, begin = 0.1, end = 0.9) +
   scale_fill_viridis(option = "mako", discrete = TRUE, direction = -1, begin = 0.1, end = 0.9) +
-  ylab("Biomass (Mt)") + xlab("")
+  ylab("Index of Abundance (Mt)") + xlab("")
 ind_depth_plot
 
 ggsave(ind_depth_plot, filename = here(results_dir, "index_depth_plot.png"),
@@ -786,141 +779,11 @@ ggsave(ind_depth_plot, filename = here(results_dir, "index_depth_plot.png"),
 
 # Combine together ------------------------------------------------------------
 # Both plots together
-avail_both <- cowplot::plot_grid(depth_plot, gear_plot, labels = c("A", "B"), ncol = 1)
+avail_both <- cowplot::plot_grid(depth_plot, gear_plot, ncol = 1)
 avail_both
 
 ggsave(avail_both, filename = here(results_dir, "avail_both.png"),
        width = 150, height = 150, units = "mm", dpi = 300)
-
-
-
-
-
-# ==============================================================================
-# Plot Xi_bs
-# ==============================================================================
-
-xi_gct <- rep$xi_gct[, 1:2, , drop = FALSE]  # Dimensions: [n_grid_cells, 2_layers, n_years]
-
-# Convert extrap matrix to data frame and sf spatial object
-extrap_df <- as.data.frame(extrap)
-extrap_sf <- st_as_sf(extrap_df, coords = c("Lon", "Lat"), crs = 4326)
-# Extract BT station locations from input dat
-dat_bt    <- dat %>% filter(Gear == "BT")
-dat_bt_sf <- st_as_sf(dat_bt, coords = c("Lon", "Lat"), crs = 4326)
-
-bt_boundary <- dat_bt_sf %>%
-  st_buffer(dist = 0.35) %>%  # ~20 nmi radius around each station
-  st_union()
-
-# Identify grid cells in extrap that fall within the refined BT footprint
-in_bt_domain <- st_intersects(extrap_sf, bt_boundary, sparse = FALSE)[, 1]
-
-# Crop both the extrapolation grid and xi_gct spatial array
-extrapolation_grid <- extrap_df[in_bt_domain, ]
-xi_gct_bt            <- xi_gct[in_bt_domain, , , drop = FALSE]
-
-cat("Original Grid Cells:", nrow(extrap_df), "\n")
-cat("Refined Footprint Grid Cells:", nrow(extrapolation_grid), "\n")
-
-
-
-# Full sequence of model years corresponding to the 3rd array dimension of xi_gct
-full_years <- min(dat$Year):max(dat$Year)
-
-# Dynamically extract unique years where AVO sampling actually occurred
-avo_years <- sort(unique(dat$Year[grepl("AVO", dat$Gear)]))
-
-n_years_avo  <- length(avo_years)
-
-# Compute optimal grid layout for years (e.g., 9 years -> 3x3; 12 years -> 4x3)
-n_cols_years <- ceiling(sqrt(n_years_avo))
-n_rows_years <- ceiling(n_years_avo / n_cols_years)
-
-# Total faceting columns = n_cols_years * 2 (since each year has 2 depth layers side-by-side)
-total_facet_cols <- n_cols_years * 2
-
-cat("AVO Years Count:", n_years_avo, "\n")
-cat("Grid Layout:", n_rows_years, "year-rows x", n_cols_years, "year-columns\n")
-
-# Get array dimensions
-n_grid   <- dim(xi_gct_bt)[1]
-n_layers <- 2  # Exactly 2 AVO layers: Layer 3 & Layer 4
-n_years  <- dim(xi_gct_bt)[3]
-
-# Set layer labels and year vector (update starting year to match your dataset)
-layer_names <- c("Layer 3 (3–16m)", "Layer 4 (>16m)")
-years_vec <- sort(unique(dat$Year))
-
-# Assumes 'extrapolation_grid' contains Lon and Lat for each grid cell
-plot_list <- list()
-
-for (t in 1:n_years) {
-  for (c in 1:n_layers) {
-    plot_list[[length(plot_list) + 1]] <- data.frame(
-      Lon   = extrapolation_grid$Lon,
-      Lat   = extrapolation_grid$Lat,
-      xi    = xi_gct_bt[, c, t],
-      Layer = layer_names[c],
-      Year  = full_years[t]
-    )
-  }
-}
-
-plot_df <- bind_rows(plot_list)
-plot_df_avo <- plot_df %>% filter(Year %in% avo_years)
-
-
-plot_single_layer_grid <- function(target_layer_name, df = plot_df_avo) {
-  df_layer <- df %>% filter(Layer == target_layer_name)
-  
-  p <- ggplot(df_layer, aes(x = Lon, y = Lat, fill = xi)) +
-    geom_tile(width = 0.35, height = 0.25) +
-    scale_fill_gradient2(
-      low      = "#2b83ba", # Blue  = Negative anomaly (<= -2)
-      mid      = "#f7f7f7", # White = Baseline conversion rate (0)
-      high     = "#d7191c", # Red   = Positive anomaly (>= +2)
-      midpoint = 0,
-      limits   = c(-2, 2),       # Sets fixed color bounds [-2, +2]
-      oob      = scales::squish, # Squashes values < -2 or > 2 to min/max colors
-      name     = expression(xi[gct] ~ " Anomaly")
-    ) +
-    facet_wrap(~ Year, ncol = n_cols_years) +
-    coord_quickmap() +
-    theme_bw(base_size = 11) +
-    theme(
-      panel.grid       = element_blank(),
-      strip.background = element_rect(fill = "grey92", color = NA),
-      strip.text       = element_text(face = "bold", size = 11),
-      axis.text.x      = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 8),
-      axis.text.y      = element_text(size = 8),
-      legend.position  = "bottom",
-      plot.title       = element_text(face = "bold", size = 14),
-      plot.subtitle    = element_text(size = 11)
-    ) +
-    labs(
-      title    = paste0("STVC Anomaly Fields (", target_layer_name, ")"),
-      subtitle = expression("AVO backscatter-to-biomass conversion anomalies (" * xi[gct] * ") across survey years"),
-      x        = "Longitude",
-      y        = "Latitude"
-    )
-  
-  return(p)
-}
-
-
-calc_width  <- n_cols_years * 3.5
-calc_height <- n_rows_years * 3.2
-
-# --- Plot 1: Layer 3 (3–16m) ---
-p_layer3 <- plot_single_layer_grid("Layer 3 (3–16m)")
-print(p_layer3)
-ggsave("EBS_STVC_xi_gct_Layer3_AVO.png", p_layer3, width = calc_width, height = calc_height, dpi = 300)
-
-# --- Plot 2: Layer 4 (>16m) ---
-p_layer4 <- plot_single_layer_grid("Layer 4 (>16m)")
-print(p_layer4)
-ggsave("EBS_STVC_xi_gct_Layer4_AVO.png", p_layer4, width = calc_width, height = calc_height, dpi = 300)
 
 
 # ==============================================================================
@@ -958,7 +821,7 @@ p_bt_grid <- ggplot(dat_bt, aes(x = Lon, y = Lat)) +
   # Haul location points colored by log catch density
   geom_point(aes(color = log_cpue), size = 1.3, alpha = 0.9) +
   scale_color_viridis_c(
-    option = "viridis",
+    option = "plasma",
     name   = expression(log("CPUE" + 1))
   ) +
   # Wrap into a balanced 2D matrix of years
@@ -988,3 +851,119 @@ calc_width  <- n_cols_years * 3.5
 calc_height <- n_rows_years * 3.2
 
 ggsave("EBS_BT_input_data_grid.png", p_bt_grid, width = calc_width, height = calc_height, dpi = 300)
+
+# ==============================================================================
+# Plot AT density inputs
+# ==============================================================================
+
+# Identify observation column in dat
+obs_col <- if ("Abundance" %in% names(dat)) {
+  "Abundance"
+} else if ("b_i" %in% names(dat)) {
+  "b_i"
+} else {
+  "CPUE"
+}
+
+# Sum AT depth layers (AT1, AT2, AT3) per station location (Year, Lon, Lat)
+dat_at_sum <- dat %>%
+  filter(grepl("^AT", Gear)) %>%
+  group_by(Year, Lon, Lat) %>%
+  summarize(Total_Density = sum(.data[[obs_col]], na.rm = TRUE), .groups = "drop") %>%
+  mutate(log_density = log1p(Total_Density))
+
+# Dynamic 2D grid layout for AT survey years
+at_years    <- sort(unique(dat_at_sum$Year))
+n_years_at  <- length(at_years)
+
+n_cols_years <- ceiling(sqrt(n_years_at))
+n_rows_years <- ceiling(n_years_at / n_cols_years)
+
+cat("AT Survey Years Count:", n_years_at, "\n")
+cat("Grid Layout:", n_rows_years, "rows x", n_cols_years, "columns\n")
+
+p_at_grid <- ggplot(dat_at_sum, aes(x = Lon, y = Lat)) +
+  geom_point(aes(color = log_density), size = 1.3, alpha = 0.9) +
+  scale_color_viridis_c(
+    option = "magma",
+    name   = expression(log("Density" + 1))
+  ) +
+  facet_wrap(~ Year, ncol = n_cols_years) +
+  coord_quickmap() +
+  theme_bw(base_size = 11) +
+  theme(
+    panel.grid       = element_blank(),
+    strip.background = element_rect(fill = "grey92", color = NA),
+    strip.text       = element_text(face = "bold", size = 10),
+    axis.text.x      = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 7),
+    axis.text.y      = element_text(size = 7),
+    legend.position  = "bottom",
+    plot.title       = element_text(face = "bold", size = 14),
+    plot.subtitle    = element_text(size = 11)
+  ) +
+  labs(
+    title    = "Acoustic Trawl (AT) Survey Input Density",
+    subtitle = "Observed pollock density integrated across water column layers per station",
+    x        = "Longitude",
+    y        = "Latitude"
+  )
+
+print(p_at_grid)
+
+calc_width  <- n_cols_years * 3.5
+calc_height <- n_rows_years * 3.2
+ggsave("EBS_AT_input_data_grid.png", p_at_grid, width = calc_width, height = calc_height, dpi = 300)
+
+
+# ==============================================================================
+# Plot AVO inputs
+# ==============================================================================
+
+# Sum AVO layers (AVO2 + AVO3) per acoustic sampling station (Year, Lon, Lat)
+dat_avo_sum <- dat %>%
+  filter(grepl("^AVO", Gear)) %>%
+  group_by(Year, Lon, Lat) %>%
+  summarize(sA_total_loc = sum(.data[[obs_col]], na.rm = TRUE), .groups = "drop") %>%
+  mutate(log_sA = log1p(sA_total_loc))
+
+# Dynamic 2D grid layout for AVO survey years
+avo_years    <- sort(unique(dat_avo_sum$Year))
+n_years_avo  <- length(avo_years)
+
+n_cols_years <- ceiling(sqrt(n_years_avo))
+n_rows_years <- ceiling(n_years_avo / n_cols_years)
+
+cat("AVO Survey Years Count:", n_years_avo, "\n")
+cat("Grid Layout:", n_rows_years, "rows x", n_cols_years, "columns\n")
+
+p_avo_grid <- ggplot(dat_avo_sum, aes(x = Lon, y = Lat)) +
+  geom_point(aes(color = log_sA), size = 1.3, alpha = 0.9) +
+  scale_color_viridis_c(
+    option = "plasma",
+    name   = expression(log(s[A] + 1))
+  ) +
+  facet_wrap(~ Year, ncol = n_cols_years) +
+  coord_quickmap() +
+  theme_bw(base_size = 11) +
+  theme(
+    panel.grid       = element_blank(),
+    strip.background = element_rect(fill = "grey92", color = NA),
+    strip.text       = element_text(face = "bold", size = 10),
+    axis.text.x      = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 7),
+    axis.text.y      = element_text(size = 7),
+    legend.position  = "bottom",
+    plot.title       = element_text(face = "bold", size = 14),
+    plot.subtitle    = element_text(size = 11)
+  ) +
+  labs(
+    title    = "Acoustic Vessel-of-Opportunity (AVO) Survey Input Backscatter",
+    subtitle = expression("Observed backscatter (" * s[A] * ") summed across midwater layers (AVO2 + AVO3) per station"),
+    x        = "Longitude",
+    y        = "Latitude"
+  )
+
+print(p_avo_grid)
+
+calc_width  <- n_cols_years * 3.5
+calc_height <- n_rows_years * 3.2
+ggsave("EBS_AVO_input_data_grid.png", p_avo_grid, width = calc_width, height = calc_height, dpi = 300)
