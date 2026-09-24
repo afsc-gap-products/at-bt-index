@@ -16,31 +16,10 @@
 #' 
 #' Code updated and maintained by Sophia Wassermann
 
-library(RTMB)
-library(fmesher)
-library(Matrix)
-library(sf)
-library(viridis)
-library(here)
-library(ggplot2)
-library(dplyr)
-library(remotes)
-library(reshape2)
-library(tidyr)
-library(DHARMa)
+install <- "full"
+source("R/requirements.R")
 
-if (!requireNamespace("akgfmaps", quietly = TRUE)) {
-  pak::pkg_install("afsc-gap-products/akgfmaps")
-}
-
-# Set ggplot theme
-if (!requireNamespace("ggsidekick", quietly = TRUE)) {
-  pak::pkg_install("seananderson/ggsidekick")
-}
-library(ggsidekick)
-theme_set(theme_sleek())
-
-results_dir <- here("Results", "new_avo_years")
+results_dir <- here("Results", "new STVC")
 if (!dir.exists(results_dir)) {
   dir.create(results_dir, recursive = TRUE)
 }
@@ -48,15 +27,11 @@ if (!dir.exists(results_dir)) {
 # Read in data and set up model inputs ----------------------------------------
 year <- 2025  # static for now (but set up for updating annually)
 dat <- read.csv(here("data", year, "dat_all.csv")) 
-#dat <- read.csv(here("data", year, "dat_bt_constrained.csv")) 
+# dat <- read.csv(here("data", year, "dat_bt_constrained.csv")) 
 
+# Remove AVO in Bristol Bay
 dat <- dat %>%
   filter(!(Year == 2010 & Gear %in% c("AVO2", "AVO3") & Lon > -160))
-# # Thin AVO3 samples
-# which_AVO3 <- which(dat$Gear == "AVO3")
-# which_drop <- sample(which_AVO3, replace = FALSE, size = floor(length(which_AVO3) * 0.5))
-# dat <- dat[-which_drop, ]
-
 
 # Set up grid 
 dat_sf <- st_as_sf(dat, coords = c("Lon", "Lat"))
@@ -147,6 +122,8 @@ jnll_spde <- function(parlist, what = "jnll") {
   # Likelihood terms
   # For the following lines: 1 = <0.5m, 2 = 0.5-3m, 3 = 3-16m, 4 = >16m
   nll_prior = nll_beta = nll_data = nll_epsilon = nll_omega = nll_epsilon_q = nll_beta_q = nll_omega_q = nll_prior_q = 0
+  yhat <- numeric(length(b_i))  # initial data vector for residual calculations
+
   for(i in seq_along(b_i)) {
     # BT covers all intervals from <0.5 to the effective fishing height (16m)
     # yhat is expected density
@@ -156,24 +133,23 @@ jnll_spde <- function(parlist, what = "jnll") {
         exp(ln_q + sum(A_is[i, ] * epsilon_sct[, 3, t_i[i]]) + beta_ct[3, t_i[i]] + mu_c[3] + omega_ic[i, 3])
     }
     # AT disaggregated into 0.5-3, 3-16, and >16
-    if(Gear[i] == "AT1") yhat <- exp(sum(A_is[i, ] * epsilon_sct[, 2, t_i[i]]) + beta_ct[2, t_i[i]] + mu_c[2] + omega_ic[i, 2])
-    if(Gear[i] == "AT2") yhat <- exp(sum(A_is[i, ] * epsilon_sct[, 3, t_i[i]]) + beta_ct[3, t_i[i]] + mu_c[3] + omega_ic[i, 3]) 
-    if(Gear[i] == "AT3") yhat <- exp(sum(A_is[i, ] * epsilon_sct[, 4,t_i[i]]) + beta_ct[4, t_i[i]] + mu_c[4] + omega_ic[i, 4])
+    if(Gear[i] == "AT1") yhat[i] <- exp(sum(A_is[i, ] * epsilon_sct[, 2, t_i[i]]) + beta_ct[2, t_i[i]] + mu_c[2] + omega_ic[i, 2])
+    if(Gear[i] == "AT2") yhat[i] <- exp(sum(A_is[i, ] * epsilon_sct[, 3, t_i[i]]) + beta_ct[3, t_i[i]] + mu_c[3] + omega_ic[i, 3]) 
+    if(Gear[i] == "AT3") yhat[i] <- exp(sum(A_is[i, ] * epsilon_sct[, 4,t_i[i]]) + beta_ct[4, t_i[i]] + mu_c[4] + omega_ic[i, 4])
     
     # AVO only available for 3-16 and >16 - do svtc here for AVO
     if(Gear[i] == "AVO2") {
       stvc_term <- sum(A_is[i, ] * epsilon_q_sct[, 1, t_i[i]]) + beta_q_ct[1, t_i[i]] + omega_q_ic[i, 1] + ln_mu_q
-      yhat <- exp(sum(A_is[i, ] * epsilon_sct[, 3, t_i[i]]) + beta_ct[3, t_i[i]] + mu_c[3] + omega_ic[i, 3] + stvc_term)
+      yhat[i] <- exp(sum(A_is[i, ] * epsilon_sct[, 3, t_i[i]]) + beta_ct[3, t_i[i]] + mu_c[3] + omega_ic[i, 3] + stvc_term)
     }
     
     if(Gear[i] == "AVO3") {
       stvc_term <- sum(A_is[i, ] * epsilon_q_sct[, 1, t_i[i]]) + beta_q_ct[1, t_i[i]] + omega_q_ic[i, 1] + ln_mu_q
-      yhat <- exp(sum(A_is[i, ] * epsilon_sct[, 4, t_i[i]]) + beta_ct[4, t_i[i]] + mu_c[4] + omega_ic[i, 4] + stvc_term)
-    
+      yhat[i] <- exp(sum(A_is[i, ] * epsilon_sct[, 4, t_i[i]]) + beta_ct[4, t_i[i]] + mu_c[4] + omega_ic[i, 4] + stvc_term)
     }
     
     nll_data <- nll_data - RTMB:::Term(dtweedie(x = b_i[i], 
-                                                mu = yhat, 
+                                                mu = yhat[i], 
                                                 phi = phi,
                                                 p = p, 
                                                 log = TRUE))
@@ -264,6 +240,7 @@ jnll_spde <- function(parlist, what = "jnll") {
                 nll_omega_q = nll_omega_q,
                 nll_prior_q   = nll_prior_q)
   }
+  if(what == "cond") out <- nll_data  # for cAIC
   
   # Make index
   index_ct <- matrix(0, nrow = 4, ncol = max(t_i))
@@ -293,12 +270,13 @@ jnll_spde <- function(parlist, what = "jnll") {
   REPORT(index_ct)
   REPORT(D_gct)
   REPORT(epsilon_gct)
-  REPORT(yhat)
+  REPORT(yhat)  # for residuals
   REPORT(Ptrawl_t)
   REPORT(Paccoustic_t)
   REPORT(Btrawl_t)
   REPORT(Baccoustic_t)
   REPORT(Btotal_t)
+  REPORT(nll_data)  # for cAIC
   REPORT(epsilon_q_gct)
   # bias-correction and SEs (be parsimonious to avoid memory issue)
   # ADREPORT(Btrawl_t)
@@ -336,6 +314,7 @@ build_obj <- function() {
 }
 
 # Run model -------------------------------------------------------------------
+start <- Sys.time()
 obj <- build_obj()
 
 init_fn <- obj$fn()
@@ -395,6 +374,9 @@ sdrep <- sdreport(obj,
                   bias.correct = FALSE,
                   getReportCovariance = TRUE)
 rep <- obj$report()
+end <- Sys.time()
+runtime <- end - start
+cat("Model took", round(runtime, 2), attr(runtime, "units"), "\n")
 
 save(obj, opt, parlist, Hess, biascor, sdrep, rep, year_set, file = here(results_dir, "model.RData"))
 
@@ -411,15 +393,14 @@ param_table <- as.data.frame(summary(sdrep, "fixed")) %>%
 param_table$parameter <- rownames(param_table)
 rownames(param_table) <- NULL
 param_table$description <- case_when(
-  grepl("mu_c", param_table$parameter) ~ "Depth interval intercept",
+  grepl("mu_c", param_table$parameter) ~ "Median for layer",
   grepl("beta_ct", param_table$parameter) ~ "Depth interval year effect",
-  grepl("ln_q", param_table$parameter) ~ "Log catchability (AVO vs BT/AT)",
-  grepl("ln_kappa", param_table$parameter) ~ "Log spatial range parameter",
-  grepl("ln_tau_omega", param_table$parameter) ~ "Log precision of spatial random effect",
-  grepl("ln_tau_epsilon", param_table$parameter) ~ "Log precision of spatio-temporal random effect",
-  grepl("ln_phi", param_table$parameter) ~ "Log Tweedie dispersion parameter",
-  grepl("invf_p", param_table$parameter) ~ "Inverse logit Tweedie p parameter",
-  grepl("invf_rho", param_table$parameter) ~ "Rho (temporal autocorrelation)",
+  grepl("log_catchability", param_table$parameter) ~ "Log catchability for AVO",
+  grepl("ln_kappa", param_table$parameter) ~ "Spatial decorrelation rate",
+  grepl("ln_tau_omega", param_table$parameter) ~ "Spatial variance per distance",
+  grepl("ln_tau_epsilon", param_table$parameter) ~ "Spatio-temporal variance per distance",
+  grepl("ln_phi", param_table$parameter) ~ "Tweedie dispersion parameter",
+  grepl("invf_p", param_table$parameter) ~ "Tweedie power parameter",
   grepl("ln_sd", param_table$parameter) ~ "Log SD of AR(1) process for beta_ct"
 )
 
@@ -446,11 +427,6 @@ prop_ct <- sweep(index_ct, MARGIN = 2, STAT = colSums(index_ct), FUN = "/")
 
 prop_bt <- colSums(index_ct[1:3, ]) / colSums(index_ct)
 prop_at <- colSums(index_ct[2:4, ]) / colSums(index_ct)
-
-
-# ==============================================================================
-# Compute and plot residuals
-# ==============================================================================
 
 # Residuals -------------------------------------------------------------------
 # Get model outputs and fitted values
@@ -549,65 +525,82 @@ for(i in 1:length(gears)) {
          width = 8, height = 5, units = "in", dpi = 300)
 }
 
-
-# Predicted random effects ----------------------------------------------------
+# Pairwise predicted random effects -------------------------------------------
 eps_array <- as.list(sdrep, report = FALSE, what = "Estimate")$epsilon_sct
-eps_by_depth <- lapply(1:4, function(c) {
-  as.vector(eps_array[, c, ])
-})
 
-pair_df <- data.frame(
-  depth1 = eps_by_depth[[1]],
-  depth2 = eps_by_depth[[2]],
-  depth3 = eps_by_depth[[3]],
-  depth4 = eps_by_depth[[4]]
+effect_df <- data.frame(
+  depth1 = as.vector(eps_array[, 1, ]),
+  depth2 = as.vector(eps_array[, 2, ]),
+  depth3 = as.vector(eps_array[, 3, ]),
+  depth4 = as.vector(eps_array[, 4, ])
 )
 
 # Code up color by survey data availability
-year_key <- rep(year_set, each = dim(eps_array))
-year_key <- case_when(year_key %in% c(2007, 2008) ~ "no AVO",
-                      year_key %in% c(2011, 2013, 2015, 2017) ~ "no AT",
-                      TRUE ~ "all surveys")
-
-# Plot pairwise by depth category
-pairwise <- function(var1, var2, label1, label2) {
-  df <- cbind.data.frame(var1 = var1, var2 = var2, surveys = year_key)
-  range_limits <- range(c(df[, 1], df[, 2]))
-  
-  pair_plot <- ggplot(df, aes(x = var1, y = var2, color = surveys)) +
-    geom_point(alpha = 0.3) +
-    geom_abline(intercept = 0, slope = 1, linetype = "dashed") +
-    coord_fixed(xlim = range_limits, ylim = range_limits) +
-    scale_color_viridis(discrete = TRUE, begin = 0.3) +
-    xlab(label1) + ylab(label2) + labs(color = NULL)
-  
-  return(pair_plot)
-}
+survey_status_by_year <- ifelse(
+  year_set %in% c(2007, 2008), "no AVO",
+  ifelse(year_set %in% c(2011, 2013, 2015, 2017), "no AT", "all surveys")
+) %>%
+  factor(levels = c("all surveys", "no AVO", "no AT"))
 
 depths <- c("<0.5m", "0.5-3m", "3-16m", ">16m")
 
-# Generate all unique pairs
-pairs <- combn(1:4, 2, simplify = FALSE)
-labs <- combn(depths, 2, simplify = FALSE)
+pairwise_plots <- function(df, labels, survey_status, transform = identity) {
+  pairs <- combn(seq_len(ncol(df)), 2, simplify = FALSE)
+  plot_list <- lapply(seq_along(pairs), function(i) {
+    idx <- pairs[[i]]
+    x <- transform(df[[idx[1]]])
+    y <- transform(df[[idx[2]]])
+    df_plot <- cbind.data.frame(var1 = x, var2 = y, surveys = survey_status)
+    range_limits <- range(c(df_plot$var1, df_plot$var2), na.rm = TRUE)
 
-plot_list <- list()
-# Loop over each pair
-for(i in seq_along(pairs)) {
-  pair <- pairs[[i]]
-  lab  <- labs[[i]]  # plot labels
-  
-  cat1 <- pair_df[, pair[1]]
-  cat2 <- pair_df[, pair[2]]
-  
-  p <- pairwise(cat1, cat2, lab[1], lab[2])
-  
-  plot_list[[length(plot_list) + 1]] <- p
+    ggplot(df_plot, aes(x = var1, y = var2, color = surveys)) +
+      geom_point(alpha = 0.3) +
+      geom_abline(intercept = 0, slope = 1, linetype = "dashed") +
+      coord_fixed(xlim = range_limits, ylim = range_limits) +
+      scale_color_viridis(begin = 0.1, end = 0.9, discrete = TRUE) +
+      xlab(labels[idx[1]]) +
+      ylab(labels[idx[2]]) +
+      labs(color = NULL)
+  })
+
+  combined_plot <- cowplot::plot_grid(plotlist = plot_list, ncol = 2)
+
+  return(combined_plot)
 }
 
-combined_plot <- cowplot::plot_grid(plotlist = plot_list, ncol = 2)
-combined_plot
-ggsave(combined_plot, file = here(results_dir, "pairwise_effects.png"),  
-       width = 150, height = 150, units = "mm", dpi = 300, bg = "white")
+year_key <- rep(survey_status_by_year, each = dim(eps_array)[1])
+pairwise_effects <- pairwise_plots(
+  df = effect_df,
+  labels = depths,
+  survey_status = year_key,
+  transform = identity
+)
+pairwise_effects
+ggsave(pairwise_effects, filename = here(results_dir, "pairwise_effects.png"),
+        width = 150, height = 150, units = "mm", dpi = 300, bg = "white")
+
+# Pairwise predicted density by depth -----------------------------------------
+Dhat_by_depth <- lapply(1:4, function(c) {
+  as.vector(Dhat_gct[, c, ])
+})
+
+density_df <- data.frame(
+  depth1 = Dhat_by_depth[[1]],
+  depth2 = Dhat_by_depth[[2]],
+  depth3 = Dhat_by_depth[[3]],
+  depth4 = Dhat_by_depth[[4]]
+)
+
+density_year_key <- rep(survey_status_by_year, each = nrow(Dhat_gct))
+pairwise_density <- pairwise_plots(
+  df = density_df,
+  labels = depths,
+  survey_status = density_year_key,
+  transform = log
+)
+pairwise_density
+ggsave(pairwise_density, filename = here(results_dir, "pairwise_density.png"),
+        width = 150, height = 150, units = "mm", dpi = 300, bg = "white")
 
 # Plot densities & spatiotemporal term ----------------------------------------
 plot_spatial_data <- function(grid, data_array, year_set, interval_labels, output_prefix, log_transform = TRUE) {
@@ -714,8 +707,10 @@ gear_plot <- ggplot() +
              aes(x = Year, y = Proportion, color = Gear, shape = Gear)) +
   geom_ribbon(data = avail_gear, 
               aes(x = Year, ymin = (Proportion - 2 * SD), ymax = (Proportion + 2 * SD), fill = Gear), alpha = 0.4) +
-  scale_color_manual(values = c("#93329E", "#A4C400")) +
-  scale_fill_manual(values = c("#93329E", "#A4C400"))
+  scale_color_manual(values = c("#35a1ab", "#3d5297")) +
+  scale_fill_manual(values = c("#35a1ab", "#3d5297")) +
+  ylim(0, NA) +
+  xlab("")
 gear_plot
 
 ggsave(gear_plot, filename = here(results_dir, "avail_gear_plot.png"),
@@ -827,17 +822,6 @@ p_bt_grid <- ggplot(dat_bt, aes(x = Lon, y = Lat)) +
   # Wrap into a balanced 2D matrix of years
   facet_wrap(~ Year, ncol = n_cols_years) +
   coord_quickmap() +
-  theme_bw(base_size = 11) +
-  theme(
-    panel.grid       = element_blank(),
-    strip.background = element_rect(fill = "grey92", color = NA),
-    strip.text       = element_text(face = "bold", size = 10),
-    axis.text.x      = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 7),
-    axis.text.y      = element_text(size = 7),
-    legend.position  = "bottom",
-    plot.title       = element_text(face = "bold", size = 14),
-    plot.subtitle    = element_text(size = 11)
-  ) +
   labs(
     title    = "Bottom Trawl (BT) Survey Input CPUE",
     subtitle = "Observed pollock catch per unit effort across Eastern Bering Sea shelf survey years",
@@ -850,7 +834,7 @@ print(p_bt_grid)
 calc_width  <- n_cols_years * 3.5
 calc_height <- n_rows_years * 3.2
 
-ggsave("EBS_BT_input_data_grid.png", p_bt_grid, width = calc_width, height = calc_height, dpi = 300)
+ggsave(here(results_dir, "EBS_BT_input_data_grid.png"), p_bt_grid, width = calc_width, height = calc_height, dpi = 300)
 
 # ==============================================================================
 # Plot AT density inputs
@@ -890,17 +874,6 @@ p_at_grid <- ggplot(dat_at_sum, aes(x = Lon, y = Lat)) +
   ) +
   facet_wrap(~ Year, ncol = n_cols_years) +
   coord_quickmap() +
-  theme_bw(base_size = 11) +
-  theme(
-    panel.grid       = element_blank(),
-    strip.background = element_rect(fill = "grey92", color = NA),
-    strip.text       = element_text(face = "bold", size = 10),
-    axis.text.x      = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 7),
-    axis.text.y      = element_text(size = 7),
-    legend.position  = "bottom",
-    plot.title       = element_text(face = "bold", size = 14),
-    plot.subtitle    = element_text(size = 11)
-  ) +
   labs(
     title    = "Acoustic Trawl (AT) Survey Input Density",
     subtitle = "Observed pollock density integrated across water column layers per station",
@@ -912,7 +885,7 @@ print(p_at_grid)
 
 calc_width  <- n_cols_years * 3.5
 calc_height <- n_rows_years * 3.2
-ggsave("EBS_AT_input_data_grid.png", p_at_grid, width = calc_width, height = calc_height, dpi = 300)
+ggsave(here(results_dir, "EBS_AT_input_data_grid.png"), p_at_grid, width = calc_width, height = calc_height, dpi = 300)
 
 
 # ==============================================================================
@@ -966,4 +939,60 @@ print(p_avo_grid)
 
 calc_width  <- n_cols_years * 3.5
 calc_height <- n_rows_years * 3.2
-ggsave("EBS_AVO_input_data_grid.png", p_avo_grid, width = calc_width, height = calc_height, dpi = 300)
+ggsave(here(results_dir, "EBS_AVO_input_data_grid.png"), p_avo_grid, width = calc_width, height = calc_height, dpi = 300)
+
+# Calculate cAIC --------------------------------------------------------------
+library(Matrix)
+
+# Extract conditional negative log-likelihood
+nll_cond <- obj$report()$nll_data
+
+# Fixed effect degrees of freedom (number of estimated non-random parameters)
+p_fixed <- length(opt$par)
+
+# Create map to fix all parameters except random effects at their MLE values
+parlist_hat <- obj$env$parList()
+map_all_fixed <- lapply(parlist_hat, function(x) factor(rep(NA, length(x))))
+
+# Un-map the random effect structures so they are treated as active parameters
+map_all_fixed$epsilon_sct <- NULL
+map_all_fixed$beta_ct     <- NULL
+map_all_fixed$omega_sc    <- NULL
+
+# Build temporary RTMB objects for random effect Hessians (without random = ...)
+obj_u_joint <- MakeADFun(
+  func = function(p) jnll_spde(p, what = "jnll"),
+  par  = parlist_hat,
+  map  = map_all_fixed,
+  silent = TRUE
+)
+
+obj_u_cond <- MakeADFun(
+  func = function(p) jnll_spde(p, what = "cond"),
+  par  = parlist_hat,
+  map  = map_all_fixed,
+  silent = TRUE
+)
+
+# Extract empirical Bayes estimates vector for random effects
+u_hat <- obj_u_joint$par
+
+# Compute sparse Hessians w.r.t. random effects
+H_joint <- obj_u_joint$he(u_hat)  # Sparse joint Hessian
+H_cond  <- obj_u_cond$he(u_hat)   # Sparse conditional Hessian
+
+# Calculate Effective Degrees of Freedom for random effects: tr(H_joint^-1 * H_cond)
+edf_u <- sum(diag(Matrix::solve(H_joint, H_cond)))
+
+# Total Effective Degrees of Freedom and cAIC
+EDF <- p_fixed + edf_u
+EDF
+cAIC <- 2 * nll_cond + 2 * EDF
+cAIC
+
+# Make a table and write to .csv
+caic_table <- data.frame(
+  Metric = c("Conditional NLL", "Fixed Effect DF", "Random Effect EDF", "Total EDF", "cAIC"),
+  Value  = c(nll_cond, p_fixed, edf_u, EDF, cAIC)
+)
+write.csv(caic_table, file = here(results_dir, "cAIC.csv"), row.names = FALSE)
