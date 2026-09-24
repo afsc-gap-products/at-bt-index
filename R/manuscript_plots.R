@@ -135,6 +135,7 @@ avail <- ggplot(dat_avail) +
   theme(legend.position = "none") +
   xlab("") + ylab("") +
   theme_sleek()
+avail
 
 ggsave(avail, filename = here(out_dir, "survey_availability.png"), 
        width = 5.5, height = 5, units = "in", dpi = 300)
@@ -230,7 +231,6 @@ ggsave(
 )
  
 # Comparison plots of the model with and without AVO --------------------------
-
 # Proportion available by depth
 depth_prop <- bind_rows(
   bind_cols(
@@ -296,7 +296,7 @@ ind_depth_compare <- bind_rows(
   geom_ribbon(aes(x = Year, ymin = (Estimate - 2 * SD), ymax = (Estimate + 2 * SD), fill = Model), alpha = 0.4) +
   scale_fill_viridis(na.value = NA, option = "inferno", discrete = TRUE, begin = 0.2, end = 0.7) +
   scale_color_viridis(na.value = NA, option = "inferno", discrete = TRUE, begin = 0.2, end = 0.7) +
-  ylab("Abundance (Mt)") + xlab("") +
+  ylab("Biomass (Mt)") + xlab("") +
   facet_wrap(~ Height)
 ind_depth_compare
 
@@ -305,7 +305,6 @@ ggsave(
   filename = here(out_dir, "index_depth_compare.png"),
   width = 8, height = 5, units = "in", dpi = 300
 )
-
 
 # Total biomass by survey (compared to assessment index) ----------------------
 index_gear <- bind_rows(
@@ -365,7 +364,7 @@ all_indices <- bind_rows(index_gear, bt_index, at_index) %>%
     # geom_errorbar(aes(x = Year, y = Estimate, ymin = lwr, ymax = upr, color = Model), width = 0.2) +
     geom_pointrange(aes(x = Year, y = Estimate, ymin = lwr, ymax = upr, color = Model), position = position_dodge(width = 0.4)) +
     scale_color_viridis(na.value = NA, option = "inferno", discrete = TRUE, begin = 0.2, end = 0.7) +
-    ylab("Abundance (Mt)") + xlab("") +
+    ylab("Biomass (Mt)") + xlab("") +
     coord_cartesian(ylim = c(0, NA)) +
     facet_wrap(~ Gear, ncol = 1)
 all_indices
@@ -387,38 +386,23 @@ ggsave(
 # Residuals -------------------------------------------------------------------
 residuals <- readRDS(here(results_dir, "residuals.RDS")) %>%
   filter(Year %in% select_years) %>%
-  mutate(Gear = factor(Gear, levels = c("AT3", "AT2", "AT1", "AVO3", "AVO2", "BT"))) %>%
-  mutate(
-    coords = st_coordinates(sf::st_centroid(geometry)),
-    lon = coords[, 1],
-    lat = coords[, 2]
-  ) %>%
-  select(-coords)
+  mutate(Gear = factor(Gear, levels = c("AT3", "AT2", "AT1", "AVO3", "AVO2", "BT"))) 
 
-# ggplot(residuals) +
-#   geom_sf(aes(fill = Residual, color = Residual)) +
-#   scale_fill_viridis(limits = c(0, 1)) + 
-#   scale_color_viridis(limits = c(0, 1)) +
-#   facet_grid(Gear ~ Year) +
-#   labs(
-#     fill = "DHARMa Residual", 
-#     color = "DHARMa Residual") +
-#   theme(
-#     axis.title = element_blank(),
-#     axis.text = element_blank(),
-#     axis.ticks = element_blank()
-#   ) 
 ggplot(residuals) +
-  geom_point(data = residuals %>% filter(Year %in% select_years), 
-            aes(x = lon, y = lat, color = Residual), size = 0.4) +
-  scale_color_viridis(limits = c(0, 1)) +
-  facet_grid(Gear ~ Year) +
-  labs(color = "Residual") +
+  geom_sf(aes(fill = Residual, color = Residual)) +
+  scale_color_distiller(palette = "PuOr") +
+  scale_fill_distiller(palette = "PuOr") +
+  facet_wrap(~Year) +
+  labs(
+    fill = "Residual", 
+    color = "Residual"
+  ) +
   theme(
     axis.title = element_blank(),
     axis.text = element_blank(),
     axis.ticks = element_blank()
-  ) 
+  ) +
+  facet_grid(Gear ~ Year)
 
 ggsave(
   filename = here(out_dir, "residuals.png"),

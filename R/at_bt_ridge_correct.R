@@ -216,6 +216,7 @@ jnll_spde <- function(parlist, what = "jnll") {
                 nll_prior = nll_prior,
                 nll_xi = nll_xi)
   }
+  if(what == "cond") out <- nll_data  # for cAIC
   
   # Make index
   index_ct <- matrix(0, nrow = 4, ncol = max(t_i))
@@ -253,6 +254,7 @@ jnll_spde <- function(parlist, what = "jnll") {
   REPORT(Baccoustic_t)
   REPORT(Btotal_t)
   REPORT(xi_gct)
+  REPORT(nll_data)
   # bias-correction and SEs (be parsimonious to avoid memory issue)
   # ADREPORT(Btrawl_t)
   # ADREPORT(Baccoustic_t)
@@ -289,6 +291,7 @@ build_obj <- function() {
 }
 
 # Run model -------------------------------------------------------------------
+start <- Sys.time()
 obj <- build_obj()
 
 init_fn <- obj$fn()
@@ -338,6 +341,9 @@ sdrep <- sdreport(obj,
                   bias.correct = FALSE,
                   getReportCovariance = TRUE)
 rep <- obj$report()
+end <- Sys.time()
+runtime <- end - start
+cat("Model took", round(runtime, 2), attr(runtime, "units"), "\n")
 
 save(obj, opt, parlist, Hess, biascor, sdrep, rep, year_set, file = here(results_dir, "model.RData"))
 
@@ -436,8 +442,8 @@ residuals_df <- data.frame(
   Lat = dat$Lat,
   Year = dat$Year,
   Gear = dat$Gear,
-  Residual = residuals(simulated_residuals)
-)
+  Residual = residuals(simulated_residuals, quantileFunction = qnorm)
+) 
 
 # Convert residuals to sf points
 residuals_sf <- st_as_sf(residuals_df, coords = c("Lon", "Lat"), crs = 4326)
@@ -468,12 +474,12 @@ gears <- unique(plotgrid_residuals$Gear)
 for(i in 1:length(gears)) {
   ggplot(plotgrid_residuals %>% filter(Gear == gears[i])) +
     geom_sf(aes(fill = Residual, color = Residual)) +
-    scale_fill_viridis(limits = c(0, 1)) + 
-    scale_color_viridis(limits = c(0, 1)) +
+    scale_color_distiller(palette = "PuOr") +
+    scale_fill_distiller(palette = "PuOr") +
     facet_wrap(~Year) +
     labs(
-      fill = "DHARMa Residual", 
-      color = "DHARMa Residual", 
+      fill = "Residual", 
+      color = "Residual", 
       title = gears[i]
     ) +
     theme(
@@ -486,64 +492,82 @@ for(i in 1:length(gears)) {
         width = 8, height = 5, units = "in", dpi = 300)
 }
 
-# Predicted random effects ----------------------------------------------------
+# Pairwise predicted random effects -------------------------------------------
 eps_array <- as.list(sdrep, report = FALSE, what = "Estimate")$epsilon_sct
-eps_by_depth <- lapply(1:4, function(c) {
-  as.vector(eps_array[, c, ])
-})
 
-pair_df <- data.frame(
-  depth1 = eps_by_depth[[1]],
-  depth2 = eps_by_depth[[2]],
-  depth3 = eps_by_depth[[3]],
-  depth4 = eps_by_depth[[4]]
+effect_df <- data.frame(
+  depth1 = as.vector(eps_array[, 1, ]),
+  depth2 = as.vector(eps_array[, 2, ]),
+  depth3 = as.vector(eps_array[, 3, ]),
+  depth4 = as.vector(eps_array[, 4, ])
 )
 
 # Code up color by survey data availability
-year_key <- rep(year_set, each = dim(eps_array))
-year_key <- case_when(year_key %in% c(2007, 2008) ~ "no AVO",
-                      year_key %in% c(2011, 2013, 2015, 2017) ~ "no AT",
-                      TRUE ~ "all surveys")
-
-# Plot pairwise by depth category
-pairwise <- function(var1, var2, label1, label2) {
-  df <- cbind.data.frame(var1 = var1, var2 = var2, surveys = year_key)
-  range_limits <- range(c(df[, 1], df[, 2]))
-  
-  pair_plot <- ggplot(df, aes(x = var1, y = var2, color = surveys)) +
-    geom_point(alpha = 0.3) +
-    geom_abline(intercept = 0, slope = 1, linetype = "dashed") +
-    coord_fixed(xlim = range_limits, ylim = range_limits) +
-    scale_color_viridis(discrete = TRUE, begin = 0.3) +
-    xlab(label1) + ylab(label2) + labs(color = NULL)
-  
-  return(pair_plot)
-}
+survey_status_by_year <- ifelse(
+  year_set %in% c(2007, 2008), "no AVO",
+  ifelse(year_set %in% c(2011, 2013, 2015, 2017), "no AT", "all surveys")
+) %>%
+  factor(levels = c("all surveys", "no AVO", "no AT"))
 
 depths <- c("<0.5m", "0.5-3m", "3-16m", ">16m")
 
-# Generate all unique pairs
-pairs <- combn(1:4, 2, simplify = FALSE)
-labs <- combn(depths, 2, simplify = FALSE)
+pairwise_plots <- function(df, labels, survey_status, transform = identity) {
+  pairs <- combn(seq_len(ncol(df)), 2, simplify = FALSE)
+  plot_list <- lapply(seq_along(pairs), function(i) {
+    idx <- pairs[[i]]
+    x <- transform(df[[idx[1]]])
+    y <- transform(df[[idx[2]]])
+    df_plot <- cbind.data.frame(var1 = x, var2 = y, surveys = survey_status)
+    range_limits <- range(c(df_plot$var1, df_plot$var2), na.rm = TRUE)
 
-plot_list <- list()
-# Loop over each pair
-for(i in seq_along(pairs)) {
-  pair <- pairs[[i]]
-  lab  <- labs[[i]]  # plot labels
-  
-  cat1 <- pair_df[, pair[1]]
-  cat2 <- pair_df[, pair[2]]
-  
-  p <- pairwise(cat1, cat2, lab[1], lab[2])
-  
-  plot_list[[length(plot_list) + 1]] <- p
+    ggplot(df_plot, aes(x = var1, y = var2, color = surveys)) +
+      geom_point(alpha = 0.3) +
+      geom_abline(intercept = 0, slope = 1, linetype = "dashed") +
+      coord_fixed(xlim = range_limits, ylim = range_limits) +
+      scale_color_viridis(begin = 0.1, end = 0.9, discrete = TRUE) +
+      xlab(labels[idx[1]]) +
+      ylab(labels[idx[2]]) +
+      labs(color = NULL)
+  })
+
+  combined_plot <- cowplot::plot_grid(plotlist = plot_list, ncol = 2)
+
+  return(combined_plot)
 }
 
-combined_plot <- cowplot::plot_grid(plotlist = plot_list, ncol = 2)
-combined_plot
-ggsave(combined_plot, file = here(results_dir, "pairwise_effects.png"),  
-       width = 150, height = 150, units = "mm", dpi = 300, bg = "white")
+year_key <- rep(survey_status_by_year, each = dim(eps_array)[1])
+pairwise_effects <- pairwise_plots(
+  df = effect_df,
+  labels = depths,
+  survey_status = year_key,
+  transform = identity
+)
+pairwise_effects
+ggsave(pairwise_effects, filename = here(results_dir, "pairwise_effects.png"),
+        width = 150, height = 150, units = "mm", dpi = 300, bg = "white")
+
+# Pairwise predicted density by depth -----------------------------------------
+Dhat_by_depth <- lapply(1:4, function(c) {
+  as.vector(Dhat_gct[, c, ])
+})
+
+density_df <- data.frame(
+  depth1 = Dhat_by_depth[[1]],
+  depth2 = Dhat_by_depth[[2]],
+  depth3 = Dhat_by_depth[[3]],
+  depth4 = Dhat_by_depth[[4]]
+)
+
+density_year_key <- rep(survey_status_by_year, each = nrow(Dhat_gct))
+pairwise_density <- pairwise_plots(
+  df = density_df,
+  labels = depths,
+  survey_status = density_year_key,
+  transform = log
+)
+pairwise_density
+ggsave(pairwise_density, filename = here(results_dir, "pairwise_density.png"),
+        width = 150, height = 150, units = "mm", dpi = 300, bg = "white")
 
 # Plot densities & spatiotemporal term ----------------------------------------
 plot_spatial_data <- function(grid, data_array, year_set, interval_labels, output_prefix, log_transform = TRUE) {
@@ -598,8 +622,8 @@ plot_spatial_data(grid, Dhat_gct, year_set, interval_labels, "Densities", log_tr
 plot_spatial_data(grid, epshat_gct, year_set, interval_labels, "eps", log_transform = FALSE)
 
 # Log density by survey 
-D_bt_gt <- apply(Dhat_gct[, 1:3, ], c(1,3), sum)        # BT
-D_at_gt <- apply(Dhat_gct[, 2:4, ], c(1,3), sum)        # AT
+D_bt_gt <- apply(Dhat_gct[, 1:3, ], c(1,3), sum)  # BT
+D_at_gt <- apply(Dhat_gct[, 2:4, ], c(1,3), sum)  # AT
 D_gzt <- array(NA, dim = c(nrow(D_bt_gt), 2, ncol(D_bt_gt)))  # Combine into one array [g, c_index, t]
 D_gzt[, 1, ] <- D_bt_gt
 D_gzt[, 2, ] <- D_at_gt
@@ -710,7 +734,7 @@ ind_depth_plot <- ggplot() +
               aes(x = Year, ymin = (Estimate - 2 * SD), ymax = (Estimate + 2 * SD), fill = Height), alpha = 0.4) +
   scale_color_viridis(option = "mako", discrete = TRUE, direction = -1, begin = 0.1, end = 0.9) +
   scale_fill_viridis(option = "mako", discrete = TRUE, direction = -1, begin = 0.1, end = 0.9) +
-  ylab("Index of Abundance (Mt)") + xlab("")
+  ylab("Biomass (Mt)") + xlab("")
 ind_depth_plot
 
 ggsave(ind_depth_plot, filename = here(results_dir, "index_depth_plot.png"),
@@ -723,3 +747,59 @@ avail_both
 
 ggsave(avail_both, filename = here(results_dir, "avail_both.png"),
        width = 150, height = 150, units = "mm", dpi = 300)
+
+# Calculate cAIC --------------------------------------------------------------
+library(Matrix)
+
+# Extract conditional negative log-likelihood
+nll_cond <- obj$report()$nll_data
+
+# Fixed effect degrees of freedom (number of estimated non-random parameters)
+p_fixed <- length(opt$par)
+
+# Create map to fix all parameters except random effects at their MLE values
+parlist_hat <- obj$env$parList()
+map_all_fixed <- lapply(parlist_hat, function(x) factor(rep(NA, length(x))))
+
+# Un-map the random effect structures so they are treated as active parameters
+map_all_fixed$epsilon_sct <- NULL
+map_all_fixed$beta_ct     <- NULL
+map_all_fixed$omega_sc    <- NULL
+
+# Build temporary RTMB objects for random effect Hessians (without random = ...)
+obj_u_joint <- MakeADFun(
+  func = function(p) jnll_spde(p, what = "jnll"),
+  par  = parlist_hat,
+  map  = map_all_fixed,
+  silent = TRUE
+)
+
+obj_u_cond <- MakeADFun(
+  func = function(p) jnll_spde(p, what = "cond"),
+  par  = parlist_hat,
+  map  = map_all_fixed,
+  silent = TRUE
+)
+
+# Extract empirical Bayes estimates vector for random effects
+u_hat <- obj_u_joint$par
+
+# Compute sparse Hessians w.r.t. random effects
+H_joint <- obj_u_joint$he(u_hat)  # Sparse joint Hessian
+H_cond  <- obj_u_cond$he(u_hat)   # Sparse conditional Hessian
+
+# Calculate Effective Degrees of Freedom for random effects: tr(H_joint^-1 * H_cond)
+edf_u <- sum(diag(Matrix::solve(H_joint, H_cond)))
+
+# Total Effective Degrees of Freedom and cAIC
+EDF <- p_fixed + edf_u
+EDF
+cAIC <- 2 * nll_cond + 2 * EDF
+cAIC
+
+# Make a table and write to .csv
+caic_table <- data.frame(
+  Metric = c("Conditional NLL", "Fixed Effect DF", "Random Effect EDF", "Total EDF", "cAIC"),
+  Value  = c(nll_cond, p_fixed, edf_u, EDF, cAIC)
+)
+write.csv(caic_table, file = here(results_dir, "cAIC.csv"), row.names = FALSE)
