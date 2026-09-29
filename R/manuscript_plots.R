@@ -411,3 +411,65 @@ ggsave(
   units = "in", 
   dpi = 300
 )
+
+# Comparison plots across model runs ------------------------------------------
+ind1 <- bind_cols(
+  read.csv(here("Results", "Results 9-25-26", "index_depth.csv")),
+  model = "all surveys"
+)
+
+ind2 <- bind_cols(
+  read.csv(here("Results", "new STVC", "index_depth.csv")),
+  model = "ST q"
+)
+
+ind3 <- bind_cols(
+  read.csv(here("Results", "Correlations", "index_depth.csv")),
+  model = "correlations"
+)
+
+ind4 <- bind_cols(
+  read.csv(here("Results", "no AVO updated", "index_depth.csv")),
+  model = "no AVO"
+)
+
+indices <- bind_rows(ind1, ind2, ind3, ind4) %>%
+  mutate(Model = factor(model, levels = c("no AVO", "all surveys", "ST q", "correlations"))) %>%
+  mutate(Height = factor(Height, levels = c(">16m", "3-16m", "0.5-3m", "<0.5m"))) %>%
+  ggplot(.) +
+  geom_line(aes(x = Year, y = Estimate, color = Model)) +
+  geom_ribbon(aes(x = Year, ymin = (Estimate - 2 * SD), ymax = (Estimate + 2 * SD), fill = Model), alpha = 0.3) +
+  # scale_fill_viridis(na.value = NA, option = "inferno", discrete = TRUE, begin = 0.2, end = 0.7) +
+  # scale_color_viridis(na.value = NA, option = "inferno", discrete = TRUE, begin = 0.2, end = 0.7) +
+  ylab("Biomass (Mt)") + xlab("") +
+  facet_wrap(~ Height)
+indices
+
+# Proportion available by gear type
+gear_prop <- bind_rows(
+  bind_cols(
+    read.csv(here("Results", "Results 9-25-26", "availability_gear.csv")), 
+    Model = "all surveys"
+  ),
+  bind_cols(
+    read.csv(here("Results", "new STVC", "availability_gear.csv")),
+    Model = "ST q"
+  ),
+  bind_cols(
+    read.csv(here("Results", "Correlations", "availability_gear.csv")),
+    Model = "correlations"
+  ),
+  bind_cols(
+    read.csv(here("Results", "no AVO updated", "availability_gear.csv")),
+    Model = "no AVO"
+  )
+) %>%
+  mutate(Model = factor(Model, levels = c("no AVO", "all surveys", "ST q", "correlations"))) %>%
+  ggplot(.) +
+    geom_line(aes(x = Year, y = Proportion, color = Model)) +
+    geom_ribbon(aes(x = Year, ymin = (Proportion - 2 * SD), ymax = (Proportion + 2 * SD), fill = Model), alpha = 0.4) +
+    # scale_fill_viridis(na.value = NA, option = "inferno", discrete = TRUE, begin = 0.2, end = 0.7) +
+    # scale_color_viridis(na.value = NA, option = "inferno", discrete = TRUE, begin = 0.2, end = 0.7) +
+    facet_wrap(~ Gear, ncol = 1) +
+    xlab("")
+gear_prop
