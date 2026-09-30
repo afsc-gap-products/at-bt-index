@@ -406,10 +406,7 @@ ggplot(residuals) +
 
 ggsave(
   filename = here(out_dir, "residuals.png"),
-  width = 8, 
-  height = 6, 
-  units = "in", 
-  dpi = 300
+  width = 8, height = 6, units = "in", dpi = 300
 )
 
 # Comparison plots across model runs ------------------------------------------
@@ -472,9 +469,43 @@ ggsave(
   width = 5, height = 5, units = "in", dpi = 300
 )
 
+# Plot residuals across models
+resid_compare <- bind_rows(
+  readRDS(here("Results", "Results 9-25-26", "residuals.RDS")) %>% mutate(Model = "all surveys"),
+  readRDS(here("Results", "new STVC", "residuals.RDS")) %>% mutate(Model = "ST q"),
+  readRDS(here("Results", "Correlations", "residuals.RDS")) %>% mutate(Model = "correlations")
+) %>%
+  mutate(Model = factor(Model, levels = c("all surveys", "ST q", "correlations"))) %>%
+  mutate(Gear = factor(Gear, levels = c("AT3", "AT2", "AT1", "AVO3", "AVO2", "BT"))) %>%
+  filter(Year %in% select_years)
+
+for(g in unique(resid_compare$Gear)) {
+  p <- ggplot(resid_compare %>% filter(Gear == g)) +
+    geom_sf(aes(fill = Residual, color = Residual)) +
+    scale_color_distiller(palette = "PuOr") +
+    scale_fill_distiller(palette = "PuOr") +
+    facet_grid(Model ~ Year) +
+    labs(
+      fill = "Residual", 
+      color = "Residual"
+    ) +
+    theme(
+      axis.title = element_blank(),
+      axis.text = element_blank(),
+      axis.ticks = element_blank()
+    ) +
+    ggtitle(g)
+  
+  ggsave(
+    filename = here(out_dir, "all models 9-30", paste0("residuals_", g, ".png")),
+    plot = p, width = 8, height = 6, units = "in", dpi = 300
+  )
+}
+
+# Compare cAIC across models
 cAIC <- bind_rows(
   read_result("Results 9-25-26", "all surveys", "cAIC.csv"),
   read_result("new STVC", "ST q", "cAIC.csv"),
   read_result("Correlations", "correlations", "cAIC.csv")
 ) %>%
-  mutate(Model = factor(Model, levels = c("no AVO", "all surveys", "ST q", "correlations")))
+  mutate(Model = factor(Model, levels = c("all surveys", "ST q", "correlations")))
