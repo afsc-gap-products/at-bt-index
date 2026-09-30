@@ -25,7 +25,8 @@ local({  # Create temporary environment (nothing saved to global environment)
     "tidyr",
     "DHARMa",
     "tweedie",
-    "cowplot"
+    "cowplot",
+    "Matrix"
   )
 
   # GitHub packages for the full model ("PackageName" = "repo/path")

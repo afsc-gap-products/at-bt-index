@@ -681,8 +681,6 @@ ggsave(avail_both, filename = here(results_dir, "avail_both.png"),
        width = 150, height = 150, units = "mm", dpi = 300)
 
 # Calculate cAIC --------------------------------------------------------------
-library(Matrix)
-
 # Extract conditional negative log-likelihood
 nll_cond <- obj$report()$nll_data
 
