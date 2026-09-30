@@ -413,63 +413,68 @@ ggsave(
 )
 
 # Comparison plots across model runs ------------------------------------------
-ind1 <- bind_cols(
-  read.csv(here("Results", "Results 9-25-26", "index_depth.csv")),
-  model = "all surveys"
-)
+read_result <- function(folder, model_name, file_name) {
+  read.csv(here("Results", folder, file_name)) %>%
+    mutate(Model = model_name)
+}
 
-ind2 <- bind_cols(
-  read.csv(here("Results", "new STVC", "index_depth.csv")),
-  model = "ST q"
-)
-
-ind3 <- bind_cols(
-  read.csv(here("Results", "Correlations", "index_depth.csv")),
-  model = "correlations"
-)
-
-ind4 <- bind_cols(
-  read.csv(here("Results", "no AVO updated", "index_depth.csv")),
-  model = "no AVO"
-)
-
-indices <- bind_rows(ind1, ind2, ind3, ind4) %>%
-  mutate(Model = factor(model, levels = c("no AVO", "all surveys", "ST q", "correlations"))) %>%
-  mutate(Height = factor(Height, levels = c(">16m", "3-16m", "0.5-3m", "<0.5m"))) %>%
-  ggplot(.) +
-  geom_line(aes(x = Year, y = Estimate, color = Model)) +
-  geom_ribbon(aes(x = Year, ymin = (Estimate - 2 * SD), ymax = (Estimate + 2 * SD), fill = Model), alpha = 0.3) +
-  # scale_fill_viridis(na.value = NA, option = "inferno", discrete = TRUE, begin = 0.2, end = 0.7) +
-  # scale_color_viridis(na.value = NA, option = "inferno", discrete = TRUE, begin = 0.2, end = 0.7) +
-  ylab("Biomass (Mt)") + xlab("") +
-  facet_wrap(~ Height)
-indices
-
-# Proportion available by gear type
-gear_prop <- bind_rows(
-  bind_cols(
-    read.csv(here("Results", "Results 9-25-26", "availability_gear.csv")), 
-    Model = "all surveys"
-  ),
-  bind_cols(
-    read.csv(here("Results", "new STVC", "availability_gear.csv")),
-    Model = "ST q"
-  ),
-  bind_cols(
-    read.csv(here("Results", "Correlations", "availability_gear.csv")),
-    Model = "correlations"
-  ),
-  bind_cols(
-    read.csv(here("Results", "no AVO updated", "availability_gear.csv")),
-    Model = "no AVO"
-  )
+all_ind_compare <- bind_rows(
+  read_result("Results 9-25-26", "all surveys", "index_depth.csv"),
+  read_result("new STVC", "ST q", "index_depth.csv"),
+  read_result("Correlations", "correlations", "index_depth.csv"),
+  read_result("no AVO updated", "no AVO", "index_depth.csv")
 ) %>%
   mutate(Model = factor(Model, levels = c("no AVO", "all surveys", "ST q", "correlations"))) %>%
+  mutate(Height = factor(Height, levels = c(">16m", "3-16m", "0.5-3m", "<0.5m"))) %>%
   ggplot(.) +
+    geom_ribbon(aes(x = Year, ymin = (Estimate - 2 * SD), ymax = (Estimate + 2 * SD), fill = Model), alpha = 0.3) +
+    geom_line(aes(x = Year, y = Estimate, color = Model)) +
+    geom_point(aes(x = Year, y = Estimate, color = Model)) +
+    ylab("Biomass (Mt)") + xlab("") +
+    facet_wrap(~ Height)
+all_ind_compare
+
+ggsave(
+  all_ind_compare,
+  filename = here(out_dir, "all models 9-30", "all_index.png"),
+  width = 8, height = 5, units = "in", dpi = 300
+)
+
+# Proportion available by gear type
+all_gear_compare <- bind_rows(
+  read_result("Results 9-25-26", "all surveys", "availability_gear.csv"),
+  read_result("new STVC", "ST q", "availability_gear.csv"),
+  read_result("Correlations", "correlations", "availability_gear.csv"),
+  read_result("no AVO updated", "no AVO", "availability_gear.csv")
+) %>% 
+  mutate(Model = factor(Model, levels = c("no AVO", "all surveys", "ST q", "correlations")))
+
+ggplot(all_gear_compare) +
+    geom_ribbon(aes(x = Year, ymin = (Proportion - 2 * SD), ymax = (Proportion + 2 * SD), fill = Model), alpha = 0.3) +
     geom_line(aes(x = Year, y = Proportion, color = Model)) +
-    geom_ribbon(aes(x = Year, ymin = (Proportion - 2 * SD), ymax = (Proportion + 2 * SD), fill = Model), alpha = 0.4) +
-    # scale_fill_viridis(na.value = NA, option = "inferno", discrete = TRUE, begin = 0.2, end = 0.7) +
-    # scale_color_viridis(na.value = NA, option = "inferno", discrete = TRUE, begin = 0.2, end = 0.7) +
+    geom_point(aes(x = Year, y = Proportion, color = Model)) +
     facet_wrap(~ Gear, ncol = 1) +
     xlab("")
-gear_prop
+
+ggsave(
+  filename = here(out_dir, "all models 9-30", "all_gear_compare.png"),
+  width = 5, height = 5, units = "in", dpi = 300
+)
+
+ggplot(all_gear_compare) +
+  geom_line(aes(x = Year, y = SD, color = Model), alpha = 0.4) +
+  geom_point(aes(x = Year, y = SD, color = Model)) +
+  facet_wrap(~ Gear, ncol = 1) +
+  xlab("") 
+
+ggsave(
+  filename = here(out_dir, "all models 9-30", "sd_compare.png"),
+  width = 5, height = 5, units = "in", dpi = 300
+)
+
+cAIC <- bind_rows(
+  read_result("Results 9-25-26", "all surveys", "cAIC.csv"),
+  read_result("new STVC", "ST q", "cAIC.csv"),
+  read_result("Correlations", "correlations", "cAIC.csv")
+) %>%
+  mutate(Model = factor(Model, levels = c("no AVO", "all surveys", "ST q", "correlations")))
