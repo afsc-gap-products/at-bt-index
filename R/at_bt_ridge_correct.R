@@ -25,6 +25,7 @@ dir.create(results_dir, showWarnings = FALSE, recursive = TRUE)
 # Read in data and set up model inputs ----------------------------------------
 year <- 2025  # static for now (but set up for updating annually)
 dat <- read.csv(here("data", year, "dat_all.csv")) 
+  # %>% filter(!grepl("AVO", Gear))  # to run the model without AVO
 
 # # Thin AVO3 samples
 # which_AVO3 <- which(dat$Gear == "AVO3")
