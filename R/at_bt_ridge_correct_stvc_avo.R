@@ -121,7 +121,7 @@ jnll_spde <- function(parlist, what = "jnll") {
   
   # Likelihood terms
   # For the following lines: 1 = <0.5m, 2 = 0.5-3m, 3 = 3-16m, 4 = >16m
-  nll_prior = nll_beta = nll_data = nll_epsilon = nll_omega = nll_epsilon_q = nll_beta_q = nll_omega_q = nll_prior_q = 0
+  nll_prior = nll_beta = nll_data = nll_epsilon = nll_omega = nll_epsilon_q = nll_beta_q = nll_omega_q = 0
   yhat <- numeric(length(b_i))  # initial data vector for residual calculations
 
   for(i in seq_along(b_i)) {
@@ -222,23 +222,25 @@ jnll_spde <- function(parlist, what = "jnll") {
       )
     }
   
-    nll_omega_q <- nll_omega_q - dgmrf(omega_q_sc[, 1], 
-                                   Q = Q_omega_q, 
-                                   log = TRUE)
+    nll_omega_q <- nll_omega_q - dgmrf(
+      omega_q_sc[, 1], 
+      Q = Q_omega_q, 
+      log = TRUE
+      )
 
-  nll_prior_q <- -1 * sum(dnorm(epsilon_q_sct, mean = 0, sd = 0.35, log = TRUE))
   nll_prior <- -1 * dnorm(ln_q, mean = 0, sd = 0.15, log = TRUE)
-  if(what == "jnll") out <- nll_data + nll_epsilon + nll_beta + nll_omega + nll_prior + nll_prior_q + nll_epsilon_q + nll_beta_q + nll_omega_q
+  if(what == "jnll") out <- nll_data + nll_epsilon + nll_beta + nll_omega + nll_prior + nll_epsilon_q + nll_beta_q + nll_omega_q
   if(what == "diag") {
-    out <- list(nll_data = nll_data,
-                nll_epsilon = nll_epsilon,
-                nll_beta = nll_beta,
-                nll_omega = nll_omega,
-                nll_prior = nll_prior,
-                nll_beta_q = nll_beta_q,
-                nll_epsilon_q = nll_epsilon_q,
-                nll_omega_q = nll_omega_q,
-                nll_prior_q   = nll_prior_q)
+    out <- list(
+      nll_data = nll_data,
+      nll_epsilon = nll_epsilon,
+      nll_beta = nll_beta,
+      nll_omega = nll_omega,
+      nll_prior = nll_prior,
+      nll_beta_q = nll_beta_q,
+      nll_epsilon_q = nll_epsilon_q,
+      nll_omega_q = nll_omega_q
+      )
   }
   if(what == "cond") out <- nll_data  # for cAIC
   
