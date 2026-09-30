@@ -5,6 +5,7 @@
 .Ruserdata
 .DS_Store
 .vscode/
+.positai
 
 # Ignore data & papers
 *.pdf
