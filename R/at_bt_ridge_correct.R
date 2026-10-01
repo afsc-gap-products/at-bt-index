@@ -278,6 +278,12 @@ end <- Sys.time()
 runtime <- end - start
 cat("Model took", round(runtime, 2), attr(runtime, "units"), "\n")
 
+# Check convergence
+opt$convergence
+opt$message
+max(abs(obj$gr(opt$par)))  # max gradient
+sdrep$pdHess  # Hessian pos def?
+
 save(obj, opt, parlist, Hess, biascor, sdrep, rep, year_set, file = here(results_dir, "model.RData"))
 
 # Table of standard errors, etc -----------------------------------------------
