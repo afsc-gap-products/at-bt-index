@@ -19,12 +19,12 @@
 install <- "full"
 source("R/requirements.R")
 
-results_dir <- here("Results", "Correlations")
+results_dir <- here("Results", "Correlations 2016")
 dir.create(results_dir, showWarnings = FALSE, recursive = TRUE)
 
 # Read in data and set up model inputs ----------------------------------------
 year <- 2025  # static for now (but set up for updating annually)
-dat <- read.csv(here("data", year, "dat_all.csv")) 
+dat <- read.csv(here("data", year, "dat_all.csv")) # %>% filter(Year %in% c(2016, 2018))
 
 # # Thin AVO3 samples
 # which_AVO3 <- which(dat$Gear == "AVO3")
@@ -88,7 +88,7 @@ parlist <- list(
   epsilon_sct_raw = array(0, dim = c(mesh$n, 4, max(t_i))), # Latent factors
   omega_sc_raw = array(0, dim = c(mesh$n, 4)),  # Latent factors
   L_omega_vec = L_init,  # Factor loadings for omega
-  L_epsilon_vec = L_init,  # Factor loadings for epsilon
+  L_epsilon_vec = diag(4)[lower.tri(diag(4), diag = TRUE)],  # Factor loadings for epsilon
   log_catchability = c(0),  # Q = E( backscatter / biomass )
   ln_kappa = log(1),
   ln_q = log(1),
@@ -119,11 +119,11 @@ jnll_spde <- function(parlist, what = "jnll") {
   L_epsilon[lower.tri(L_epsilon, diag = TRUE)] <- L_epsilon_vec
   
   # Calculate Covariance & Correlation Matrices across depth layers
-  Cov_omega <- L_omega %*% t(L_omega)
+  Cov_omega <- L_omega %*% t(L_omega) 
   sd_omega <- sqrt(diag(Cov_omega))
   Cor_omega <- Cov_omega / (sd_omega %*% t(sd_omega))
   
-  Cov_epsilon <- L_epsilon %*% t(L_epsilon)
+  Cov_epsilon <- L_epsilon %*% t(L_epsilon) 
   sd_epsilon <- sqrt(diag(Cov_epsilon))
   Cor_epsilon <- Cov_epsilon / (sd_epsilon %*% t(sd_epsilon))
   
@@ -231,6 +231,8 @@ jnll_spde <- function(parlist, what = "jnll") {
   REPORT(Cor_epsilon)
   REPORT(Cov_omega)
   REPORT(Cov_epsilon)
+  REPORT(L_omega)
+  REPORT(omega_sc)
   # bias-correction and SEs (be parsimonious to avoid memory issue)
   if(isTRUE(extra_adreport)) {
     ADREPORT(Ptrawl_t)
@@ -247,7 +249,9 @@ extra_adreport <- FALSE
 jnll_spde(parlist)
 
 # 
-map <- list()
+map <- list(
+  L_epsilon_vec = factor(rep(NA, length(parlist$L_epsilon_vec)))
+)
 map$invf_rho <- factor(NA)
 #map$ln_sd = factor(NA)
 map$ln_q <- factor(NA)
@@ -271,6 +275,13 @@ opt <- nlminb(obj$par,
               obj$fn, 
               obj$gr, 
               control = list(iter.max = 1e4, eval.max = 1e4, trace = 1))
+check_estimability(obj)
+
+# extra optimization
+# opt <- nlminb(opt$par, 
+#               obj$fn, 
+#               obj$gr, 
+#               control = list(iter.max = 1e4, eval.max = 1e4, trace = 1))
 
 parlist <- obj$env$parList()  # parameter estimates
 Hess <- optimHess(opt$par, obj$fn, obj$gr)
@@ -297,7 +308,16 @@ end <- Sys.time()
 runtime <- end - start
 cat("Model took", round(runtime, 2), attr(runtime, "units"), "\n")
 
+# Check convergence
+opt$convergence
+opt$message
+max(abs(obj$gr(opt$par)))
+sdrep$pdHess
+
 save(obj, opt, parlist, Hess, biascor, sdrep, rep, year_set, file = here(results_dir, "model.RData"))
+
+
+omega_sc <- rep$omega_sc
 
 # Table of standard errors, etc -----------------------------------------------
 if (!exists("obj")) {load(here(results_dir, "model.RData"))}
@@ -740,6 +760,27 @@ cor_cov <- cowplot::plot_grid(
   ncol = 2)
 cor_cov
 ggsave(here(results_dir, "correlation_covariance.png"), cor_cov, width = 10, height = 8, dpi = 300)
+
+# plot omega_sc
+omega_sc <- rep$omega_sc
+mesh_coords <- as.data.frame(mesh$loc[, 1:2])
+colnames(mesh_coords) <- c("Lon", "Lat")
+
+omega_mesh_df <- cbind(mesh_coords, as.data.frame(rep$omega_sc))
+colnames(omega_mesh_df)[3:6] <- depths
+
+omega_mesh_long <- pivot_longer(
+  omega_mesh_df,
+  cols = all_of(depths),
+  names_to = "Depth_Layer",
+  values_to = "omega"
+)
+
+ggplot(omega_mesh_long, aes(x = Lon, y = Lat, color = omega)) +
+  geom_point(size = 1.5) +
+  scale_color_viridis() +
+  facet_wrap(~ Depth_Layer) 
+
 
 # Calculate cAIC --------------------------------------------------------------
 library(Matrix)
