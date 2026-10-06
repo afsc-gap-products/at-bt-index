@@ -679,12 +679,49 @@ ind_depth_plot
 ggsave(ind_depth_plot, filename = here(results_dir, "index_depth_plot.png"),
        width = 150, height = 90, units = "mm", dpi = 300)
 
+# Index by gear ---------------------------------------------------------------
+index_gear <- ind_depth %>%
+  mutate(Gear = case_when(
+    Height %in% c("<0.5m", "0.5-3m", "3-16m") ~ "BT",
+    Height %in% c("0.5-3m", "3-16m", ">16m") ~ "AT"
+  )) %>%
+  summarize(
+    .by = c(Year, Gear),
+    Estimate = sum(Estimate),
+    SD = sum(SD)
+  ) 
+
+survey_yr_points2 <- index_gear %>% 
+  filter((Gear == "AT" & Year %in% at_years) | 
+           (Gear == "BT" & Year %in% bt_years)) %>%
+  mutate(Gear = factor(Gear, levels = c("AT", "BT")))
+
+index_gear_plot <- ggplot() +
+  geom_line(data = index_gear, 
+            aes(x = Year, y = Estimate, color = Gear)) +
+  geom_point(data = survey_yr_points2,
+             aes(x = Year, y = Estimate, color = Gear, shape = Gear)) +
+  geom_ribbon(data = index_gear, 
+              aes(x = Year, ymin = (Estimate - 2 * SD), ymax = (Estimate + 2 * SD), fill = Gear), alpha = 0.4) +
+  scale_color_manual(values = c("#35a1ab", "#3d5297")) +
+  scale_fill_manual(values = c("#35a1ab", "#3d5297")) +
+  ylim(0, NA) +
+  xlab("") + ylab("Biomass (Mt)")
+index_gear_plot
+
+ggsave(index_gear_plot, filename = here(results_dir, "index_gear_plot.png"),
+       width = 150, height = 90, units = "mm", dpi = 300)
+
 # Combine together ------------------------------------------------------------
 # Both plots together
 avail_both <- cowplot::plot_grid(depth_plot, gear_plot, labels = c("A", "B"), ncol = 1)
-avail_both
 
 ggsave(avail_both, filename = here(results_dir, "avail_both.png"),
+       width = 150, height = 150, units = "mm", dpi = 300)
+
+index_both <- cowplot::plot_grid(depth_plot, index_gear_plot, labels = c("A", "B"), ncol = 1)
+
+ggsave(index_both, filename = here(results_dir, "index_both.png"),
        width = 150, height = 150, units = "mm", dpi = 300)
 
 # Calculate cAIC --------------------------------------------------------------
