@@ -19,7 +19,7 @@
 install <- "full"
 source("R/requirements.R")
 
-results_dir <- here("Results", "Correlations 2016")
+results_dir <- here("Results", "Correlations FA")
 dir.create(results_dir, showWarnings = FALSE, recursive = TRUE)
 
 # Read in data and set up model inputs ----------------------------------------
@@ -74,22 +74,21 @@ M0 <- spde$c0  # mass matrix
 M1 <- spde$g1  # gradient matrix (first derivative)
 M2 <- spde$g2  # stiffness matrix (second derivative / Laplacian)
 
-# Initial lower-triangular values for 4x4 matrix
+# Parameter list for 2 latent factors (n_f = 2)
+# Lower-triangular loading vectors (7 elements each for a 4x2 matrix)
 L_init <- c(
-  1,             # L[1,1]
-  0, 1,          # L[2,1], L[2,2]
-  0, 0, 1,       # L[3,1], L[3,2], L[3,3]
-  0, 0, 0, 1     # L[4,1], L[4,2], L[4,3], L[4,4]
+  1, 0, 0, 0,  # Col 1: Factor 1 loadings for layers 1, 2, 3, 4
+  1, 0, 0      # Col 2: Factor 2 loadings for layers 2, 3, 4
 )
 
 parlist <- list(
   mu_c = rep(0, 4),
   beta_ct = array(0, dim = c(4, max(t_i))),
-  epsilon_sct_raw = array(0, dim = c(mesh$n, 4, max(t_i))), # Latent factors
-  omega_sc_raw = array(0, dim = c(mesh$n, 4)),  # Latent factors
-  L_omega_vec = L_init,  # Factor loadings for omega
-  L_epsilon_vec = diag(4)[lower.tri(diag(4), diag = TRUE)],  # Factor loadings for epsilon
-  log_catchability = c(0),  # Q = E( backscatter / biomass )
+  epsilon_sct_raw = array(0, dim = c(mesh$n, 2, max(t_i))), # 2 factors
+  omega_sc_raw = array(0, dim = c(mesh$n, 2)),              # 2 factors
+  L_omega_vec = L_init,                                     # length 7
+  L_epsilon_vec = L_init,                                   # length 7
+  log_catchability = c(0),
   ln_kappa = log(1),
   ln_q = log(1),
   ln_phi = log(1),
@@ -112,11 +111,13 @@ jnll_spde <- function(parlist, what = "jnll") {
   Q_spatial <- (exp(4 * ln_kappa) * M0 + 2 * exp(2 * ln_kappa) * M1 + M2)
 
 # Reconstruct 4x4 Lower-Triangular Loading Matrices
-  L_omega <- matrix(0, 4, 4)
-  L_omega[lower.tri(L_omega, diag = TRUE)] <- L_omega_vec
+  L_omega <- matrix(0, 4, 2)
+  L_omega[1:4, 1] <- L_omega_vec[1:4]
+  L_omega[2:4, 2] <- L_omega_vec[5:7]
   
-  L_epsilon <- matrix(0, 4, 4)
-  L_epsilon[lower.tri(L_epsilon, diag = TRUE)] <- L_epsilon_vec
+  L_epsilon <- matrix(0, 4, 2)
+  L_epsilon[1:4, 1] <- L_epsilon_vec[1:4]
+  L_epsilon[2:4, 2] <- L_epsilon_vec[5:7]
   
   # Calculate Covariance & Correlation Matrices across depth layers
   Cov_omega <- L_omega %*% t(L_omega) 
@@ -171,23 +172,23 @@ jnll_spde <- function(parlist, what = "jnll") {
   }
 
   # Evaluate GMRF likelihoods for latent factors
-  for(f_index in 1:4) {
+  for(f_index in 1:2) {
     nll_omega <- nll_omega - dgmrf(omega_sc_raw[, f_index], Q = Q_spatial, log = TRUE)
   }
-  
+
   for(t_index in 1:max(t_i)) {
-    for(f_index in 1:4) {
+    for(f_index in 1:2) { # FIX: Changed from 1:4 to 1:2
       if(t_index == 1) {
         nll_epsilon <- nll_epsilon - dgmrf(epsilon_sct_raw[, f_index, t_index], 
-                                           Q = Q_spatial, log = TRUE)
+                                          Q = Q_spatial, log = TRUE)
       } else {
         nll_epsilon <- nll_epsilon - dgmrf(epsilon_sct_raw[, f_index, t_index], 
-                                           mu = rho * epsilon_sct_raw[, f_index, t_index - 1], 
-                                           Q = Q_spatial, log = TRUE)
+                                          mu = rho * epsilon_sct_raw[, f_index, t_index - 1], 
+                                          Q = Q_spatial, log = TRUE)
       }
     }
   }
-  
+    
   for(t_index in 1:max(t_i)) {
     for(c_index in 1:4) {
       if(t_index == 1) {
@@ -250,7 +251,8 @@ jnll_spde(parlist)
 
 # 
 map <- list(
-  L_epsilon_vec = factor(rep(NA, length(parlist$L_epsilon_vec)))
+  L_epsilon_vec = factor(rep(NA, length(parlist$L_epsilon_vec))),
+  epsilon_sct_raw = factor(rep(NA, length(parlist$epsilon_sct_raw)))
 )
 map$invf_rho <- factor(NA)
 #map$ln_sd = factor(NA)
@@ -260,7 +262,7 @@ build_obj <- function() {
   MakeADFun( 
     func = jnll_spde,
     par = parlist,
-    random = c("epsilon_sct_raw", "beta_ct", "omega_sc_raw"),
+    random = c("beta_ct", "omega_sc_raw"),
     silent = TRUE,
     #profile = "mu_c",
     map = map,
@@ -315,9 +317,6 @@ max(abs(obj$gr(opt$par)))
 sdrep$pdHess
 
 save(obj, opt, parlist, Hess, biascor, sdrep, rep, year_set, file = here(results_dir, "model.RData"))
-
-
-omega_sc <- rep$omega_sc
 
 # Table of standard errors, etc -----------------------------------------------
 if (!exists("obj")) {load(here(results_dir, "model.RData"))}
@@ -761,8 +760,10 @@ cor_cov <- cowplot::plot_grid(
 cor_cov
 ggsave(here(results_dir, "correlation_covariance.png"), cor_cov, width = 10, height = 8, dpi = 300)
 
-# plot omega_sc
+# plot omega_sc ---------------------------------------------------------------
 omega_sc <- rep$omega_sc
+
+# Add mesh coordinates and plot
 mesh_coords <- as.data.frame(mesh$loc[, 1:2])
 colnames(mesh_coords) <- c("Lon", "Lat")
 
@@ -772,14 +773,17 @@ colnames(omega_mesh_df)[3:6] <- depths
 omega_mesh_long <- pivot_longer(
   omega_mesh_df,
   cols = all_of(depths),
-  names_to = "Depth_Layer",
+  names_to = "layer",
   values_to = "omega"
 )
 
 ggplot(omega_mesh_long, aes(x = Lon, y = Lat, color = omega)) +
   geom_point(size = 1.5) +
   scale_color_viridis() +
-  facet_wrap(~ Depth_Layer) 
+  xlab("") + ylab("") +
+  facet_wrap(~ layer) 
+
+ggsave(here(results_dir, "omega_sc.png"), width = 5, height = 5, units = "in", dpi = 300)
 
 
 # Calculate cAIC --------------------------------------------------------------
