@@ -234,7 +234,7 @@ ggsave(
 # Proportion available by depth
 depth_prop <- bind_rows(
   bind_cols(
-    read.csv(here("Results", "new_avo_years", "availability_depth.csv")), 
+    read.csv(here(results_dir, "availability_depth.csv")), 
     Model = "All Surveys"),
   bind_cols(
     read.csv(here("Results", "no AVO updated", "availability_depth.csv")),
@@ -258,7 +258,7 @@ ggsave(
 # Proportion available by gear type
 gear_prop <- bind_rows(
   bind_cols(
-    read.csv(here("Results", "new_avo_years", "availability_gear.csv")), 
+    read.csv(here(results_dir, "availability_gear.csv")), 
     Model = "All Surveys"),
   bind_cols(
     read.csv(here("Results", "no AVO updated", "availability_gear.csv")),
@@ -283,14 +283,15 @@ ggsave(
 # Biomass available by depth
 ind_depth_compare <- bind_rows(
   bind_cols(
-    read.csv(here("Results", "new_avo_years", "index_depth.csv")), 
-    Model = "All Surveys"),
+    read.csv(here(results_dir, "index_depth.csv")), 
+    Model = "all Surveys"),
   bind_cols(
     read.csv(here("Results", "no AVO updated", "index_depth.csv")),
-    Model = "No AVO"
+    Model = "no AVO"
   )
 ) %>%
   mutate(Height = factor(Height, levels = c(">16m", "3-16m", "0.5-3m", "<0.5m"))) %>%
+  mutate(Model = factor(Model, levels = c("no AVO", "all Surveys"))) %>%
   ggplot(.) +
   geom_line(aes(x = Year, y = Estimate, color = Model)) +
   geom_ribbon(aes(x = Year, ymin = (Estimate - 2 * SD), ymax = (Estimate + 2 * SD), fill = Model), alpha = 0.4) +
@@ -308,18 +309,18 @@ ggsave(
 
 # Total biomass by survey (compared to assessment index) ----------------------
 index_gear <- bind_rows(
-  read.csv(here("Results", "new_avo_years", "index_depth.csv")) %>%
+  read.csv(here(results_dir, "index_depth.csv")) %>%
     mutate(Gear = case_when(
       Height %in% c("<0.5m", "0.5-3m", "3-16m") ~ "BT",
       Height %in% c("0.5-3m", "3-16m", ">16m") ~ "AT"
     )) %>%
-    mutate(Model = "All Surveys"),
+    mutate(Model = "all surveys"),
   read.csv(here("Results", "no AVO updated", "index_depth.csv")) %>%
     mutate(Gear = case_when(
       Height %in% c("<0.5m", "0.5-3m", "3-16m") ~ "BT",
       Height %in% c("0.5-3m", "3-16m", ">16m") ~ "AT"
     )) %>% 
-    mutate(Model = "No AVO")
+    mutate(Model = "no AVO")
 ) %>%
   summarize(
     .by = c(Year, Gear, Model),
@@ -415,25 +416,26 @@ read_result <- function(folder, model_name, file_name) {
     mutate(Model = model_name)
 }
 
-all_ind_compare <- bind_rows(
+all_depth <- bind_rows(
   read_result("Results 9-25-26", "all surveys", "index_depth.csv"),
   read_result("new STVC", "ST q", "index_depth.csv"),
   read_result("Correlations", "correlations", "index_depth.csv"),
   read_result("no AVO updated", "no AVO", "index_depth.csv")
 ) %>%
   mutate(Model = factor(Model, levels = c("no AVO", "all surveys", "ST q", "correlations"))) %>%
-  mutate(Height = factor(Height, levels = c(">16m", "3-16m", "0.5-3m", "<0.5m"))) %>%
-  ggplot(.) +
+  mutate(Height = factor(Height, levels = c(">16m", "3-16m", "0.5-3m", "<0.5m"))) 
+
+all_depth_plot <- ggplot(all_depth) +
     geom_ribbon(aes(x = Year, ymin = (Estimate - 2 * SD), ymax = (Estimate + 2 * SD), fill = Model), alpha = 0.3) +
     geom_line(aes(x = Year, y = Estimate, color = Model)) +
-    geom_point(aes(x = Year, y = Estimate, color = Model)) +
+    geom_point(aes(x = Year, y = Estimate, color = Model, shape = Model)) +
     ylab("Biomass (Mt)") + xlab("") +
     facet_wrap(~ Height)
-all_ind_compare
+all_depth_plot
 
 ggsave(
-  all_ind_compare,
-  filename = here(out_dir, "all models 9-30", "all_index.png"),
+  all_depth_plot,
+  filename = here(out_dir, "all_depth.png"),
   width = 8, height = 5, units = "in", dpi = 300
 )
 
@@ -449,12 +451,35 @@ all_gear_compare <- bind_rows(
 ggplot(all_gear_compare) +
     geom_ribbon(aes(x = Year, ymin = (Proportion - 2 * SD), ymax = (Proportion + 2 * SD), fill = Model), alpha = 0.3) +
     geom_line(aes(x = Year, y = Proportion, color = Model)) +
-    geom_point(aes(x = Year, y = Proportion, color = Model)) +
+    geom_point(aes(x = Year, y = Proportion, color = Model, shape = Model)) +
     facet_wrap(~ Gear, ncol = 1) +
     xlab("")
 
 ggsave(
-  filename = here(out_dir, "all models 9-30", "all_gear_compare.png"),
+  filename = here(out_dir, "all_gear_compare.png"),
+  width = 5, height = 5, units = "in", dpi = 300
+)
+
+all_index_compare <- all_depth %>%
+  mutate(Gear = case_when(
+    Height %in% c("<0.5m", "0.5-3m", "3-16m") ~ "BT",
+    Height %in% c("0.5-3m", "3-16m", ">16m") ~ "AT"
+  )) %>%
+  summarize(
+    .by = c(Model, Year, Gear),
+    Estimate = sum(Estimate),
+    SD = sum(SD)
+  ) 
+
+ggplot(all_index_compare) +
+    geom_ribbon(aes(x = Year, ymin = (Estimate - 2 * SD), ymax = (Estimate + 2 * SD), fill = Model), alpha = 0.3) +
+    geom_line(aes(x = Year, y = Estimate, color = Model)) +
+    geom_point(aes(x = Year, y = Estimate, color = Model, shape = Model)) +
+    facet_wrap(~ Gear, ncol = 1) +
+    xlab("") + ylab("Biomass")
+
+ggsave(
+  filename = here(out_dir, "all_index_compare.png"),
   width = 5, height = 5, units = "in", dpi = 300
 )
 
@@ -465,7 +490,7 @@ ggplot(all_gear_compare) +
   xlab("") 
 
 ggsave(
-  filename = here(out_dir, "all models 9-30", "sd_compare.png"),
+  filename = here(out_dir, "sd_compare.png"),
   width = 5, height = 5, units = "in", dpi = 300
 )
 
@@ -497,7 +522,7 @@ for(g in unique(resid_compare$Gear)) {
     ggtitle(g)
   
   ggsave(
-    filename = here(out_dir, "all models 9-30", paste0("residuals_", g, ".png")),
+    filename = here(out_dir, paste0("residuals_", g, ".png")),
     plot = p, width = 8, height = 6, units = "in", dpi = 300
   )
 }
