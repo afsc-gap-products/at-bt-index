@@ -19,7 +19,7 @@
 install <- "full"
 source("R/requirements.R")
 
-results_dir <- here("Results", "Results 8-13-26")
+results_dir <- here("Results", "Results 9-25-26")
 dir.create(results_dir, showWarnings = FALSE, recursive = TRUE)
 
 # Read in data and set up model inputs ----------------------------------------
@@ -438,52 +438,54 @@ effect_df <- data.frame(
   depth1 = as.vector(eps_array[, 1, ]),
   depth2 = as.vector(eps_array[, 2, ]),
   depth3 = as.vector(eps_array[, 3, ]),
-  depth4 = as.vector(eps_array[, 4, ])
+  depth4 = as.vector(eps_array[, 4, ]),
+  year = rep(year_set, each = dim(eps_array)[1])
 )
-
-# Code up color by survey data availability
-survey_status_by_year <- ifelse(
-  year_set %in% c(2007, 2008), "no AVO",
-  ifelse(year_set %in% c(2011, 2013, 2015, 2017), "no AT", "all surveys")
-) %>%
-  factor(levels = c("all surveys", "no AVO", "no AT"))
 
 depths <- c("<0.5m", "0.5-3m", "3-16m", ">16m")
 
-pairwise_plots <- function(df, labels, survey_status, transform = identity) {
-  pairs <- combn(seq_len(ncol(df)), 2, simplify = FALSE)
-  plot_list <- lapply(seq_along(pairs), function(i) {
-    idx <- pairs[[i]]
-    x <- transform(df[[idx[1]]])
-    y <- transform(df[[idx[2]]])
-    df_plot <- cbind.data.frame(var1 = x, var2 = y, surveys = survey_status)
-    range_limits <- range(c(df_plot$var1, df_plot$var2), na.rm = TRUE)
+pairwise_plots <- function(df, labels, transform = identity, type) {
+  data_cols <- setdiff(names(df), "year")
+  pairs <- combn(data_cols, 2, simplify = FALSE)
+  plots <- lapply(seq_along(pairs), function(i) {
+    p <- pairs[[i]]
+    col1 <- p[1]
+    col2 <- p[2]
+    
+    df_pair <- data.frame(
+      var1 = transform(df[[col1]]),
+      var2 = transform(df[[col2]]),
+      year = df[["year"]]
+    )
+    range_limits <- range(c(df_pair$var1, df_pair$var2), na.rm = TRUE)
+    lbl1 <- labels[match(col1, data_cols)]
+    lbl2 <- labels[match(col2, data_cols)]
 
-    ggplot(df_plot, aes(x = var1, y = var2, color = surveys)) +
-      geom_point(alpha = 0.3) +
+    ggplot(df_pair, aes(x = var1, y = var2)) +
+      geom_point(alpha = 0.3, color = "darkorchid") +
       geom_abline(intercept = 0, slope = 1, linetype = "dashed") +
       coord_fixed(xlim = range_limits, ylim = range_limits) +
-      scale_color_viridis(begin = 0.1, end = 0.9, discrete = TRUE) +
-      xlab(labels[idx[1]]) +
-      ylab(labels[idx[2]]) +
+      facet_wrap(~ year) +
+      xlab(lbl1) +
+      ylab(lbl2) +
+      labs(title = paste0(lbl1, " vs. ", lbl2)) +
       labs(color = NULL)
   })
 
-  combined_plot <- cowplot::plot_grid(plotlist = plot_list, ncol = 2)
-
-  return(combined_plot)
+  names(plots) <- combn(labels, 2, FUN = function(x) paste(x[1], x[2], sep = "_"))
+  for(pair in names(plots)) {
+    clean_name <- gsub("[<>]", "", pair) # remove '<' and '>' from filenames
+    ggsave(plots[[pair]], filename = here(results_dir, "pairwise", paste0(type, "_", clean_name, ".png")),
+           width = 150, height = 150, units = "mm", dpi = 300, bg = "white")
+  }
 }
 
-year_key <- rep(survey_status_by_year, each = dim(eps_array)[1])
 pairwise_effects <- pairwise_plots(
   df = effect_df,
   labels = depths,
-  survey_status = year_key,
-  transform = identity
+  transform = identity,
+  type = "effects"
 )
-pairwise_effects
-ggsave(pairwise_effects, filename = here(results_dir, "pairwise_effects.png"),
-        width = 150, height = 150, units = "mm", dpi = 300, bg = "white")
 
 # Pairwise predicted density by depth -----------------------------------------
 Dhat_by_depth <- lapply(1:4, function(c) {
@@ -494,19 +496,16 @@ density_df <- data.frame(
   depth1 = Dhat_by_depth[[1]],
   depth2 = Dhat_by_depth[[2]],
   depth3 = Dhat_by_depth[[3]],
-  depth4 = Dhat_by_depth[[4]]
+  depth4 = Dhat_by_depth[[4]],
+  year = rep(year_set, each = dim(Dhat_gct)[1])
 )
 
-density_year_key <- rep(survey_status_by_year, each = nrow(Dhat_gct))
 pairwise_density <- pairwise_plots(
   df = density_df,
   labels = depths,
-  survey_status = density_year_key,
-  transform = log
+  transform = log,
+  type = "density"
 )
-pairwise_density
-ggsave(pairwise_density, filename = here(results_dir, "pairwise_density.png"),
-        width = 150, height = 150, units = "mm", dpi = 300, bg = "white")
 
 # Plot densities & spatiotemporal term ----------------------------------------
 plot_spatial_data <- function(grid, data_array, year_set, interval_labels, output_prefix, log_transform = TRUE) {
