@@ -31,7 +31,8 @@ local({  # Create temporary environment (nothing saved to global environment)
   # GitHub packages for the full model ("PackageName" = "repo/path")
   full_github_pkgs <- c(
     "akgfmaps"   = "afsc-gap-products/akgfmaps",
-    "ggsidekick" = "seananderson/ggsidekick"
+    "ggsidekick" = "seananderson/ggsidekick",
+    "TMBhelper"  = "kaskr/TMB_contrib_R/TMBhelper"
   )
 
   # Install CRAN packages
