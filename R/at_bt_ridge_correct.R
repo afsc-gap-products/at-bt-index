@@ -19,12 +19,12 @@
 install <- "full"
 source("R/requirements.R")
 
-results_dir <- here("Results", "Correlations 2016")
+results_dir <- here("Results", "Correlations")
 dir.create(results_dir, showWarnings = FALSE, recursive = TRUE)
 
 # Read in data and set up model inputs ----------------------------------------
 year <- 2025  # static for now (but set up for updating annually)
-dat <- read.csv(here("data", year, "dat_all.csv")) # %>% filter(Year %in% c(2016, 2018))
+dat <- read.csv(here("data", year, "dat_all.csv")) 
 
 # # Thin AVO3 samples
 # which_AVO3 <- which(dat$Gear == "AVO3")
@@ -75,12 +75,14 @@ M1 <- spde$g1  # gradient matrix (first derivative)
 M2 <- spde$g2  # stiffness matrix (second derivative / Laplacian)
 
 # Initial lower-triangular values for 4x4 matrix
-L_init <- c(
-  1,             # L[1,1]
-  0, 1,          # L[2,1], L[2,2]
-  0, 0, 1,       # L[3,1], L[3,2], L[3,3]
-  0, 0, 0, 1     # L[4,1], L[4,2], L[4,3], L[4,4]
-)
+# L_init <- c(
+#   1,           
+#   0, 1,        
+#   0, 0, 1,      
+#   0, 0, 0, 1     
+# )
+
+L_init <- rnorm(10)
 
 parlist <- list(
   mu_c = rep(0, 4),
@@ -232,7 +234,7 @@ jnll_spde <- function(parlist, what = "jnll") {
   REPORT(Cov_omega)
   REPORT(Cov_epsilon)
   REPORT(L_omega)
-  REPORT(omega_sc)
+  REPORT(omega_sc_raw)
   # bias-correction and SEs (be parsimonious to avoid memory issue)
   if(isTRUE(extra_adreport)) {
     ADREPORT(Ptrawl_t)
@@ -251,6 +253,7 @@ jnll_spde(parlist)
 # 
 map <- list(
   L_epsilon_vec = factor(rep(NA, length(parlist$L_epsilon_vec)))
+  # L_omega_vec = factor(c(1:6, rep(NA, 4)))
 )
 map$invf_rho <- factor(NA)
 #map$ln_sd = factor(NA)
@@ -297,7 +300,7 @@ biascor <- sdreport(obj,
 
 # Get SEs
 extra_adreport <- TRUE
-obj <- build_obj()
+# obj <- build_obj()
 sdrep <- sdreport(obj,
                   par.fixed = opt$par,
                   hessian.fixed = Hess, 
@@ -762,24 +765,26 @@ cor_cov
 ggsave(here(results_dir, "correlation_covariance.png"), cor_cov, width = 10, height = 8, dpi = 300)
 
 # plot omega_sc
-omega_sc <- rep$omega_sc
 mesh_coords <- as.data.frame(mesh$loc[, 1:2])
 colnames(mesh_coords) <- c("Lon", "Lat")
 
-omega_mesh_df <- cbind(mesh_coords, as.data.frame(rep$omega_sc))
-colnames(omega_mesh_df)[3:6] <- depths
+omega_mesh_df <- cbind(mesh_coords, as.data.frame(rep$omega_sc_raw))
 
 omega_mesh_long <- pivot_longer(
   omega_mesh_df,
-  cols = all_of(depths),
-  names_to = "Depth_Layer",
+  cols = c("V1", "V2", "V3", "V4"),
+  names_to = "layer",
   values_to = "omega"
-)
+) 
 
 ggplot(omega_mesh_long, aes(x = Lon, y = Lat, color = omega)) +
   geom_point(size = 1.5) +
   scale_color_viridis() +
-  facet_wrap(~ Depth_Layer) 
+  facet_wrap(~ layer) 
+
+ggplot(omega_mesh_long %>% filter(layer == "V4"), aes(x = Lon, y = Lat, color = omega)) +
+  geom_point(size = 1.5) +
+  scale_color_viridis()
 
 
 # Calculate cAIC --------------------------------------------------------------
