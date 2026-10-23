@@ -21,7 +21,7 @@ Seattle, WA 98195
 
 ## Overview
 
-This repository contains code to fit and evaluate a spatiotemporal index model that combines acoustic trawl survey (AT) and bottom trawl survey (BT) biomass estimates for eastern Bering Sea walleye pollock. The model is structured by depth intervals (<0.5 m, 0.5-3 m, 3-16 m, and >16 m from the bottom) and incorporates AVO backscatter when available. The workflow estimates survey-specific biomass, tracks uncertainty, and produces the diagnostic plots and summary tables used for index reporting.
+This repository contains code to fit a spatiotemporal index model that combines acoustic trawl survey (AT) and bottom trawl survey (BT) biomass estimates for eastern Bering Sea walleye pollock. The model is structured by depth intervals (<0.5 m, 0.5-3 m, 3-16 m, and >16 m from the bottom) and incorporates backscatter from the acoustic vessels of opportunity (AVO). The workflow estimates survey-specific biomass, uncertainty, and produces the diagnostic plots and summary tables used for index reporting.
 
 ---
 
@@ -53,9 +53,6 @@ The project is organized around a small set of R scripts and supporting director
 
 - `output/`  
   Folder for generated model output and figure products.
-
-- `including_avo.qmd`  
-  Quarto analysis documenting the model configuration when the AVO is included.
 
 ### General workflow
 
