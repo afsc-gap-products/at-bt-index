@@ -74,23 +74,25 @@ M0 <- spde$c0  # mass matrix
 M1 <- spde$g1  # gradient matrix (first derivative)
 M2 <- spde$g2  # stiffness matrix (second derivative / Laplacian)
 
-# Initial lower-triangular values for 4x4 matrix
-# L_init <- c(
-#   1,           
-#   0, 1,        
-#   0, 0, 1,      
-#   0, 0, 0, 1     
-# )
+# Factor-analysis dimensions
+n_layers <- 4   # depth layers (<0.5m, 0.5-3m, 3-16m, >16m)
+n_factors <- 3  # latent spatial factors (n_factors <= n_layers)
 
-L_init <- rnorm(10)
+# Loadings are an [n_layers x n_factors] lower-triangular matrix, stored as the
+# vector of its lower-triangle elements (column-major, diagonal included)
+L_template <- matrix(0, n_layers, n_factors)
+L_lower <- lower.tri(L_template, diag = TRUE)
+n_loadings <- sum(L_lower)  # 9 for 4 layers x 3 factors (10 for 4 x 4)
+
+L_init <- rnorm(n_loadings)
 
 parlist <- list(
-  mu_c = rep(0, 4),
-  beta_ct = array(0, dim = c(4, max(t_i))),
-  epsilon_sct_raw = array(0, dim = c(mesh$n, 4, max(t_i))), # Latent factors
-  omega_sc_raw = array(0, dim = c(mesh$n, 4)),  # Latent factors
+  mu_c = rep(0, n_layers),
+  beta_ct = array(0, dim = c(n_layers, max(t_i))),
+  epsilon_sct_raw = array(0, dim = c(mesh$n, n_factors, max(t_i))), # Latent factors
+  omega_sc_raw = array(0, dim = c(mesh$n, n_factors)),  # Latent factors
   L_omega_vec = L_init,  # Factor loadings for omega
-  L_epsilon_vec = diag(4)[lower.tri(diag(4), diag = TRUE)],  # Factor loadings for epsilon
+  L_epsilon_vec = diag(1, n_layers, n_factors)[L_lower],  # Factor loadings for epsilon
   log_catchability = c(0),  # Q = E( backscatter / biomass )
   ln_kappa = log(1),
   ln_q = log(1),
@@ -113,12 +115,12 @@ jnll_spde <- function(parlist, what = "jnll") {
   # Unscaled Matérn precision matrix (variance absorbed into L)
   Q_spatial <- (exp(4 * ln_kappa) * M0 + 2 * exp(2 * ln_kappa) * M1 + M2)
 
-# Reconstruct 4x4 Lower-Triangular Loading Matrices
-  L_omega <- matrix(0, 4, 4)
-  L_omega[lower.tri(L_omega, diag = TRUE)] <- L_omega_vec
-  
-  L_epsilon <- matrix(0, 4, 4)
-  L_epsilon[lower.tri(L_epsilon, diag = TRUE)] <- L_epsilon_vec
+  # Reconstruct [n_layers x n_factors] lower-triangular loading matrices
+  L_omega <- matrix(0, n_layers, n_factors)
+  L_omega[L_lower] <- L_omega_vec
+
+  L_epsilon <- matrix(0, n_layers, n_factors)
+  L_epsilon[L_lower] <- L_epsilon_vec
   
   # Calculate Covariance & Correlation Matrices across depth layers
   Cov_omega <- L_omega %*% t(L_omega) 
@@ -130,11 +132,11 @@ jnll_spde <- function(parlist, what = "jnll") {
   Cor_epsilon <- Cov_epsilon / (sd_epsilon %*% t(sd_epsilon))
   
   # Transform raw factors to correlated depth layers
-  # omega_sc: [mesh$n x 4]
+  # omega_sc: [mesh$n x n_factors] %*% [n_factors x n_layers] = [mesh$n x n_layers]
   omega_sc <- omega_sc_raw %*% t(L_omega)
-  
-  # epsilon_sct: [mesh$n x 4 x t]
-  epsilon_sct <- array(0, dim = c(mesh$n, 4, max(t_i)))
+
+  # epsilon_sct: [mesh$n x n_layers x t]
+  epsilon_sct <- array(0, dim = c(mesh$n, n_layers, max(t_i)))
   for(t_index in 1:max(t_i)) {
     epsilon_sct[,, t_index] <- epsilon_sct_raw[,, t_index] %*% t(L_epsilon)
   }
@@ -173,12 +175,12 @@ jnll_spde <- function(parlist, what = "jnll") {
   }
 
   # Evaluate GMRF likelihoods for latent factors
-  for(f_index in 1:4) {
+  for(f_index in 1:n_factors) {
     nll_omega <- nll_omega - dgmrf(omega_sc_raw[, f_index], Q = Q_spatial, log = TRUE)
   }
-  
+
   for(t_index in 1:max(t_i)) {
-    for(f_index in 1:4) {
+    for(f_index in 1:n_factors) {
       if(t_index == 1) {
         nll_epsilon <- nll_epsilon - dgmrf(epsilon_sct_raw[, f_index, t_index], 
                                            Q = Q_spatial, log = TRUE)
@@ -191,7 +193,7 @@ jnll_spde <- function(parlist, what = "jnll") {
   }
   
   for(t_index in 1:max(t_i)) {
-    for(c_index in 1:4) {
+    for(c_index in 1:n_layers) {
       if(t_index == 1) {
         nll_beta <- nll_beta - dnorm(beta_ct[c_index, t_index], mean = 0, sd = sd, log = TRUE)
       } else {
@@ -205,12 +207,12 @@ jnll_spde <- function(parlist, what = "jnll") {
   if(what == "cond") out <- nll_data  # for cAIC
   
   # Derived calculations & Index construction
-  index_ct <- matrix(0, nrow = 4, ncol = max(t_i))
+  index_ct <- matrix(0, nrow = n_layers, ncol = max(t_i))
   omega_gc <- A_gs %*% omega_sc
-  epsilon_gct = D_gct = array(0, dim = c(length(area_g), 4, max(t_i)))
-  
+  epsilon_gct = D_gct = array(0, dim = c(length(area_g), n_layers, max(t_i)))
+
   for(t_index in 1:max(t_i)) {
-    for(c_index in 1:4) {
+    for(c_index in 1:n_layers) {
       epsilon_gct[, c_index, t_index] <- (A_gs %*% epsilon_sct[, c_index, t_index])[, 1]
       D_gct[, c_index, t_index] <- area_g * exp(A_gs %*% epsilon_sct[, c_index, t_index] + beta_ct[c_index, t_index] + mu_c[c_index] + omega_gc[, c_index])[, 1]
       index_ct[c_index, t_index] <- sum(area_g * exp(A_gs %*% epsilon_sct[, c_index, t_index] + beta_ct[c_index, t_index] + mu_c[c_index] + omega_gc[, c_index]))
@@ -234,7 +236,10 @@ jnll_spde <- function(parlist, what = "jnll") {
   REPORT(Cov_omega)
   REPORT(Cov_epsilon)
   REPORT(L_omega)
+  REPORT(L_epsilon)
   REPORT(omega_sc_raw)
+  REPORT(omega_sc)     # layer-level spatial field [mesh$n x n_layers]
+  REPORT(epsilon_sct)  # layer-level spatio-temporal field [mesh$n x n_layers x t]
   # bias-correction and SEs (be parsimonious to avoid memory issue)
   if(isTRUE(extra_adreport)) {
     ADREPORT(Ptrawl_t)
@@ -467,7 +472,8 @@ for(i in 1:length(gears)) {
 }
 
 # Pairwise predicted random effects -------------------------------------------
-eps_array <- as.list(sdrep, report = FALSE, what = "Estimate")$epsilon_sct
+# Layer-level fields (epsilon_sct_raw holds the n_factors latent factors instead)
+eps_array <- rep$epsilon_sct
 
 effect_df <- data.frame(
   depth1 = as.vector(eps_array[, 1, ]),
@@ -771,7 +777,7 @@ omega_mesh_df <- cbind(mesh_coords, as.data.frame(rep$omega_sc_raw))
 
 omega_mesh_long <- pivot_longer(
   omega_mesh_df,
-  cols = c("V1", "V2", "V3", "V4"),
+  cols = paste0("V", seq_len(n_factors)),
   names_to = "layer",
   values_to = "omega"
 ) 
@@ -781,7 +787,7 @@ ggplot(omega_mesh_long, aes(x = Lon, y = Lat, color = omega)) +
   scale_color_viridis() +
   facet_wrap(~ layer) 
 
-ggplot(omega_mesh_long %>% filter(layer == "V4"), aes(x = Lon, y = Lat, color = omega)) +
+ggplot(omega_mesh_long %>% filter(layer == paste0("V", n_factors)), aes(x = Lon, y = Lat, color = omega)) +
   geom_point(size = 1.5) +
   scale_color_viridis()
 
@@ -800,9 +806,9 @@ parlist_hat <- obj$env$parList()
 map_all_fixed <- lapply(parlist_hat, function(x) factor(rep(NA, length(x))))
 
 # Un-map the random effect structures so they are treated as active parameters
-map_all_fixed$epsilon_sct <- NULL
-map_all_fixed$beta_ct     <- NULL
-map_all_fixed$omega_sc    <- NULL
+map_all_fixed$epsilon_sct_raw <- NULL
+map_all_fixed$beta_ct         <- NULL
+map_all_fixed$omega_sc_raw    <- NULL
 
 # Build temporary RTMB objects for random effect Hessians (without random = ...)
 obj_u_joint <- MakeADFun(
