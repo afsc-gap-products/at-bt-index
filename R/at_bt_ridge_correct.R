@@ -252,7 +252,7 @@ jnll_spde(parlist)
 
 # 
 map <- list(
-  L_epsilon_vec = factor(rep(NA, length(parlist$L_epsilon_vec)))
+  # L_epsilon_vec = factor(rep(NA, length(parlist$L_epsilon_vec)))
   # L_omega_vec = factor(c(1:6, rep(NA, 4)))
 )
 map$invf_rho <- factor(NA)
@@ -272,7 +272,7 @@ build_obj <- function() {
 }
 
 # Run model -------------------------------------------------------------------
-start <- Sys.time()
+# start <- Sys.time()
 obj <- build_obj()
 opt <- nlminb(obj$par, 
               obj$fn, 
@@ -307,9 +307,9 @@ sdrep <- sdreport(obj,
                   bias.correct = FALSE,
                   getReportCovariance = FALSE)
 rep <- obj$report()
-end <- Sys.time()
-runtime <- end - start
-cat("Model took", round(runtime, 2), attr(runtime, "units"), "\n")
+# end <- Sys.time()
+# runtime <- end - start
+# cat("Model took", round(runtime, 2), attr(runtime, "units"), "\n")
 
 # Check convergence
 opt$convergence
@@ -318,7 +318,6 @@ max(abs(obj$gr(opt$par)))
 sdrep$pdHess
 
 save(obj, opt, parlist, Hess, biascor, sdrep, rep, year_set, file = here(results_dir, "model.RData"))
-
 
 omega_sc <- rep$omega_sc
 
