@@ -260,7 +260,7 @@ depth_prop
 ggsave(
   depth_prop,
   filename = here(out_dir, "depth_proportion.png"),
-  width = 5, height = 5, units = "in", dpi = 300
+  width = 4, height = 5, units = "in", dpi = 300
 )
 
 # Proportion available by gear type
@@ -281,8 +281,8 @@ gear_prop <- bind_rows(
   )
 ) %>%
   ggplot(.) +
+    geom_ribbon(aes(x = Year, ymin = (Proportion - 2 * SD), ymax = (Proportion + 2 * SD), fill = Model), alpha = 0.3) +
     geom_line(aes(x = Year, y = Proportion, color = Model)) +
-    geom_ribbon(aes(x = Year, ymin = (Proportion - 2 * SD), ymax = (Proportion + 2 * SD), fill = Model), alpha = 0.4) +
     scale_fill_viridis(na.value = NA, option = "inferno", discrete = TRUE, begin = 0.1, end = 0.9) +
     scale_color_viridis(na.value = NA, option = "inferno", discrete = TRUE, begin = 0.1, end = 0.9) +
     facet_wrap(~ Gear, ncol = 1) +
@@ -296,7 +296,7 @@ ggsave(
 )
 
 # Biomass available by depth
-ind_depth_compare <- bind_rows(
+index_depth_all <- bind_rows(
   bind_cols(
     read.csv(here("Results", "Results 9-25-26", "index_depth.csv")), 
     Model = "1. Original"),
@@ -312,10 +312,11 @@ ind_depth_compare <- bind_rows(
     Model = "2. Cor. w/out epsilon"
   )
 ) %>%
-  mutate(Height = factor(Height, levels = c(">16m", "3-16m", "0.5-3m", "<0.5m"))) %>%
-  ggplot(.) +
+  mutate(Height = factor(Height, levels = c(">16m", "3-16m", "0.5-3m", "<0.5m")))
+
+ind_depth_compare <- ggplot(index_depth_all) +
+  geom_ribbon(aes(x = Year, ymin = (Estimate - 2 * SD), ymax = (Estimate + 2 * SD), fill = Model), alpha = 0.3) +
   geom_line(aes(x = Year, y = Estimate, color = Model)) +
-  geom_ribbon(aes(x = Year, ymin = (Estimate - 2 * SD), ymax = (Estimate + 2 * SD), fill = Model), alpha = 0.4) +
   scale_fill_viridis(na.value = NA, option = "inferno", discrete = TRUE, begin = 0.1, end = 0.9) +
   scale_color_viridis(na.value = NA, option = "inferno", discrete = TRUE, begin = 0.1, end = 0.9) +
   ylab("Biomass (Mt)") + xlab("") +
@@ -328,19 +329,49 @@ ggsave(
   width = 9, height = 5, units = "in", dpi = 300
 )
 
+# Biomass available to each gear type
+gear_heights <- tribble( # Map heights to the gear that samples them
+  ~Height,  ~Gear,
+  "<0.5m",  "BT",
+  "0.5-3m", "BT",
+  "3-16m",  "BT",
+  "0.5-3m", "AT",
+  "3-16m",  "AT",
+  ">16m",   "AT"
+)
+
+index_gear_all <- index_depth_all %>%
+  mutate(Height = as.character(Height)) %>%
+  inner_join(gear_heights, by = "Height", relationship = "many-to-many") %>%
+  summarize(
+    .by = c(Model, Year, Gear),
+    Estimate = sum(Estimate),
+    SD = sum(SD)
+  )
+
+ind_gear_compare <- ggplot(index_gear_all) +
+  geom_ribbon(aes(x = Year, ymin = Estimate - 2 * SD, ymax = Estimate + 2 * SD, fill = Model), alpha = 0.3) +
+  geom_line(aes(x = Year, y = Estimate, color = Model)) +
+  # geom_point(aes(x = Year, y = Estimate, color = Model, shape = Model)) +
+  scale_fill_viridis(na.value = NA, option = "inferno", discrete = TRUE, begin = 0.1, end = 0.9) +
+  scale_color_viridis(na.value = NA, option = "inferno", discrete = TRUE, begin = 0.1, end = 0.9) +
+  facet_wrap(~ Gear, ncol = 1) +
+  ylab("Biomass (Mt)") + xlab("")
+ind_gear_compare
+
+ggsave(
+  ind_gear_compare,
+  filename = here(out_dir, "index_gear_compare.png"),
+  width = 6, height = 5, units = "in", dpi = 300
+)
+
 # Total biomass by survey (compared to assessment index) ----------------------
 index_gear <- bind_rows(
   read.csv(here("Results", "Results 9-25-26", "index_depth.csv")) %>%
-    mutate(Gear = case_when(
-      Height %in% c("<0.5m", "0.5-3m", "3-16m") ~ "BT",
-      Height %in% c("0.5-3m", "3-16m", ">16m") ~ "AT"
-    )) %>%
+    inner_join(gear_heights, by = "Height", relationship = "many-to-many") %>%
     mutate(Model = "1. Original"),
   read.csv(here("Results", "Correlations 3F", "index_depth.csv")) %>%
-    mutate(Gear = case_when(
-      Height %in% c("<0.5m", "0.5-3m", "3-16m") ~ "BT",
-      Height %in% c("0.5-3m", "3-16m", ">16m") ~ "AT"
-    )) %>% 
+    inner_join(gear_heights, by = "Height", relationship = "many-to-many") %>% 
     mutate(Model = "4. Cor. w/ epsilon & 3 factors")
 ) %>%
   summarize(
