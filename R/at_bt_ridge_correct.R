@@ -305,7 +305,7 @@ biascor <- sdreport(obj,
 
 # Get SEs
 extra_adreport <- TRUE
-# obj <- build_obj()
+obj <- build_obj()  # re-tape so the extra ADREPORTs are included
 sdrep <- sdreport(obj,
                   par.fixed = opt$par,
                   hessian.fixed = Hess, 
@@ -629,11 +629,11 @@ indices <- data.frame(Year = year_set,
 avail_gear <- rbind(
   cbind.data.frame(Year = year_set, 
                    Proportion = prop_at, 
-                   SD = SD_report$Paccoustic,
+                   SD = SD_report$Paccoustic_t,
                    Gear = "AT"),
   cbind.data.frame(Year = year_set, 
                    Proportion = prop_bt, 
-                   SD = SD_report$Ptrawl,
+                   SD = SD_report$Ptrawl_t,
                    Gear = "BT")) 
 
 write.csv(avail_gear, here(results_dir, "availability_gear.csv"), row.names = FALSE)
