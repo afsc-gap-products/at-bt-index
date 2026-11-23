@@ -234,14 +234,22 @@ ggsave(
 # Proportion available by depth
 depth_prop <- bind_rows(
   bind_cols(
-    read.csv(here("Results", "Results 8-13-26", "availability_depth.csv")), 
-    Model = "Original"),
+    read.csv(here("Results", "Results 9-25-26", "availability_depth.csv")), 
+    Model = "1. Original"),
   bind_cols(
-    read.csv(here("Results", "Correlations", "availability_depth.csv")),
-    Model = "Correlations"
+    read.csv(here("Results", "Correlations 3F", "availability_depth.csv")), 
+    Model = "4. Cor. w/ epsilon & 3 factors"),
+  bind_cols(
+    read.csv(here("Results", "Correlations epsilon", "availability_depth.csv")),
+    Model = "3. Cor. w/ epsilon"
+  ),
+  bind_cols(
+    read.csv(here("Results", "Correlations no epsilon", "availability_depth.csv")),
+    Model = "2. Cor. w/out epsilon"
   )
 ) %>%
   mutate(Height = factor(Height, levels = c(">16m", "3-16m", "0.5-3m", "<0.5m"))) %>%
+  # mutate(Model = factor(Model, levels = c("Original", "No epsilon", "Epsilon", "3 Factors"))) %>%
   ggplot(.) +
   geom_bar(aes(x = Year, y = Proportion, fill = Height), 
            position = "fill", stat = "identity") +
@@ -258,18 +266,25 @@ ggsave(
 # Proportion available by gear type
 gear_prop <- bind_rows(
   bind_cols(
-    read.csv(here("Results", "Results 8-13-26", "availability_gear.csv")), 
-    Model = "Orignal"),
+    read.csv(here("Results", "Results 9-25-26", "availability_gear.csv")), 
+    Model = "1. Original"),
   bind_cols(
-    read.csv(here("Results", "Correlations", "availability_gear.csv")),
-    Model = "Correlations"
+    read.csv(here("Results", "Correlations 3F", "availability_gear.csv")), 
+    Model = "4. Cor. w/ epsilon & 3 factors"),
+  bind_cols(
+    read.csv(here("Results", "Correlations epsilon", "availability_gear.csv")),
+    Model = "3. Cor. w/ epsilon"
+  ),
+  bind_cols(
+    read.csv(here("Results", "Correlations no epsilon", "availability_gear.csv")),
+    Model = "2. Cor. w/out epsilon"
   )
 ) %>%
   ggplot(.) +
     geom_line(aes(x = Year, y = Proportion, color = Model)) +
     geom_ribbon(aes(x = Year, ymin = (Proportion - 2 * SD), ymax = (Proportion + 2 * SD), fill = Model), alpha = 0.4) +
-    scale_fill_viridis(na.value = NA, option = "inferno", discrete = TRUE, begin = 0.2, end = 0.7) +
-    scale_color_viridis(na.value = NA, option = "inferno", discrete = TRUE, begin = 0.2, end = 0.7) +
+    scale_fill_viridis(na.value = NA, option = "inferno", discrete = TRUE, begin = 0.1, end = 0.9) +
+    scale_color_viridis(na.value = NA, option = "inferno", discrete = TRUE, begin = 0.1, end = 0.9) +
     facet_wrap(~ Gear, ncol = 1) +
     xlab("")
 gear_prop
@@ -277,25 +292,32 @@ gear_prop
 ggsave(
   gear_prop,
   filename = here(out_dir, "gear_proportion.png"),
-  width = 5, height = 5, units = "in", dpi = 300
+  width = 6, height = 5, units = "in", dpi = 300
 )
 
 # Biomass available by depth
 ind_depth_compare <- bind_rows(
   bind_cols(
-    read.csv(here("Results", "Results 8-13-26", "index_depth.csv")), 
-    Model = "Original"),
+    read.csv(here("Results", "Results 9-25-26", "index_depth.csv")), 
+    Model = "1. Original"),
   bind_cols(
-    read.csv(here("Results", "Correlations", "index_depth.csv")),
-    Model = "Correlations"
+    read.csv(here("Results", "Correlations 3F", "index_depth.csv")), 
+    Model = "4. Cor. w/ epsilon & 3 factors"),
+  bind_cols(
+    read.csv(here("Results", "Correlations epsilon", "index_depth.csv")),
+    Model = "3. Cor. w/ epsilon"
+  ),
+  bind_cols(
+    read.csv(here("Results", "Correlations no epsilon", "index_depth.csv")),
+    Model = "2. Cor. w/out epsilon"
   )
 ) %>%
   mutate(Height = factor(Height, levels = c(">16m", "3-16m", "0.5-3m", "<0.5m"))) %>%
   ggplot(.) +
   geom_line(aes(x = Year, y = Estimate, color = Model)) +
   geom_ribbon(aes(x = Year, ymin = (Estimate - 2 * SD), ymax = (Estimate + 2 * SD), fill = Model), alpha = 0.4) +
-  scale_fill_viridis(na.value = NA, option = "inferno", discrete = TRUE, begin = 0.2, end = 0.7) +
-  scale_color_viridis(na.value = NA, option = "inferno", discrete = TRUE, begin = 0.2, end = 0.7) +
+  scale_fill_viridis(na.value = NA, option = "inferno", discrete = TRUE, begin = 0.1, end = 0.9) +
+  scale_color_viridis(na.value = NA, option = "inferno", discrete = TRUE, begin = 0.1, end = 0.9) +
   ylab("Biomass (Mt)") + xlab("") +
   facet_wrap(~ Height)
 ind_depth_compare
@@ -303,23 +325,23 @@ ind_depth_compare
 ggsave(
   ind_depth_compare,
   filename = here(out_dir, "index_depth_compare.png"),
-  width = 8, height = 5, units = "in", dpi = 300
+  width = 9, height = 5, units = "in", dpi = 300
 )
 
 # Total biomass by survey (compared to assessment index) ----------------------
 index_gear <- bind_rows(
-  read.csv(here("Results", "Results 8-13-26", "index_depth.csv")) %>%
+  read.csv(here("Results", "Results 9-25-26", "index_depth.csv")) %>%
     mutate(Gear = case_when(
       Height %in% c("<0.5m", "0.5-3m", "3-16m") ~ "BT",
       Height %in% c("0.5-3m", "3-16m", ">16m") ~ "AT"
     )) %>%
-    mutate(Model = "Original"),
-  read.csv(here("Results", "Correlations", "index_depth.csv")) %>%
+    mutate(Model = "1. Original"),
+  read.csv(here("Results", "Correlations 3F", "index_depth.csv")) %>%
     mutate(Gear = case_when(
       Height %in% c("<0.5m", "0.5-3m", "3-16m") ~ "BT",
       Height %in% c("0.5-3m", "3-16m", ">16m") ~ "AT"
     )) %>% 
-    mutate(Model = "Correlations")
+    mutate(Model = "4. Cor. w/ epsilon & 3 factors")
 ) %>%
   summarize(
     .by = c(Year, Gear, Model),
