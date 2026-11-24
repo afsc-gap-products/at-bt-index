@@ -829,11 +829,17 @@ obj_u_cond <- MakeADFun(
 u_hat <- obj_u_joint$par
 
 # Compute sparse Hessians w.r.t. random effects
-H_joint <- obj_u_joint$he(u_hat)  # Sparse joint Hessian
-H_cond  <- obj_u_cond$he(u_hat)   # Sparse conditional Hessian
+# he() returns dense matrices, so convert to sparse symmetric matrices
+H_joint <- forceSymmetric(Matrix(obj_u_joint$he(u_hat), sparse = TRUE))
+H_cond  <- forceSymmetric(Matrix(obj_u_cond$he(u_hat), sparse = TRUE))
 
 # Calculate Effective Degrees of Freedom for random effects: tr(H_joint^-1 * H_cond)
-edf_u <- sum(diag(Matrix::solve(H_joint, H_cond)))
+# tr(A^-1 B) = sum_ij (A^-1)_ij * B_ij for symmetric B, so only the entries of
+# H_joint^-1 where H_cond is nonzero are needed. TMB:::solveSubset() computes
+# these from the sparse Cholesky factor (selected inversion), which covers the
+# sparsity pattern of H_cond and avoids the full dense solve.
+H_joint_inv <- TMB:::solveSubset(H_joint)
+edf_u <- sum(as(H_joint_inv, "generalMatrix") * as(H_cond, "generalMatrix"))
 
 # Total Effective Degrees of Freedom and cAIC
 EDF <- p_fixed + edf_u
